@@ -1,9 +1,9 @@
 bl_info = {
-    "name": "nozzleboss",
+    "name": "Claywoven Gcode exporter",
     "description": "G-code Importer/Editor/Re-Exporter",
-    "author": "Heinz Löpmeier",
-    "version": (0, 0, 1),
-    "blender": (3, 0, 0),
+    "author": "Jasper - Claywoven (based on Heinz Löpmeier's nozzleboss)",
+    "version": (0, 0, 2),
+    "blender": (4, 5, 0),   # min version = 4.5, 
     "location": "3D View > nozzleboss",
     "category": "Import-Export"
 }
