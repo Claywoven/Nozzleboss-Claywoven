@@ -147,7 +147,7 @@ class gcode_settings(bpy.types.PropertyGroup):
 
 class NOZZLEBOSS_PT_Panel(bpy.types.Panel):
  
-    bl_label = "nozzleboss"
+    bl_label = "NozzleBoss (Claywoven fork)"
     bl_idname = 'NOZZLEBOSS_PT_Panel' 
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
