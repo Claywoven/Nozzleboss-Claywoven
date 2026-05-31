@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Claywoven Gcode exporter",
+    "name": "NozzleBoss (Claywoven Fork)",
     "description": "G-code Importer/Editor/Re-Exporter",
     "author": "Jasper - Claywoven (based on Heinz Löpmeier's nozzleboss)",
     "version": (0, 0, 2),
