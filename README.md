@@ -1,4 +1,13 @@
 # nozzleboss [Claywoven fork]
+
+###This fork is specifically aimed at improving the export workflow.  
+- Makes a copy of the selected object
+- Applies active modifiers other than solidify before exporting 
+- Adds a Z-hop between large travel moves, taking into account the highest part printed so far, so you can print nonplaner design withough so much risk of crashing in a travel move - stil you need to check in g-code preview and take into account gantry and part cooling fan, but it saves a lot of time
+- Warns if it cannot save as the file is open in a blocking program (slicer preview usually)
+- Fixes some bugs to work in blender 4.5 and up
+
+
 ### nozzleboss is a G-code importer and re-exporter Add-on for Blender.  
 ![intro_extrasmall](https://user-images.githubusercontent.com/17910445/150960353-a4e39422-3d2e-4e46-be27-bc2b35ba813f.gif)  
 _The G-code gets converted to a mesh and can be modified with all of Blenders modeling tools_
