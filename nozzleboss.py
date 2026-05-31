@@ -276,7 +276,7 @@ def import_gcode(context, filepath):
         return {'FINISHED'} 
     
     
-def export_gcode(context):
+def export_gcode(context, operator=None):
   
       #auto create textblocks to, need if you model from scratch (if you import existing they get created in parser)
     if not bpy.data.texts.get('T0'):
@@ -308,7 +308,21 @@ def export_gcode(context):
     then=time.time()
     filename = bpy.path.basename(bpy.data.filepath)
     filename = os.path.splitext(filename)[0] #strip .blend extension
-    gcode_txt = open(bpy.path.abspath("//")+bpy.path.basename(filename)+".gcode","w")
+
+
+    output_path = bpy.path.abspath("//") + bpy.path.basename(filename) + ".gcode"
+    try:
+        gcode_txt = open(output_path, "w")
+    except PermissionError:
+        if operator:
+            operator.report({'ERROR'}, f"Could not write file — is it open in another program? {output_path}")
+        return {'CANCELLED'}
+    except OSError as e:
+        if operator:
+            operator.report({'ERROR'}, f"File write failed: {e}")
+        return {'CANCELLED'}
+
+
 
     _txt = []
     start_code = read_textblock('Start')+'\n'#'G28\nM140 S50\nM109 S190\nM83\nG1 F600\n;RGB,-1,-1,-1\nM163 S0 P0\nM163 S1 P0\nM163 S2 P1\nM163 S3 P1\nM163 S4 P1\nM164 S0\nT0\n'
