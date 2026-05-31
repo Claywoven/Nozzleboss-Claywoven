@@ -491,15 +491,46 @@ class WM_OT_gcode_export(Operator):
     
     @classmethod
     def poll(cls, context):
-        try:
-            return context.object.type in ('MESH')
-        except:
-            return False
+        obj = context.active_object
+        return obj is not None and obj.select_get() and obj.type in {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT'}
 
-        
     def execute(self, context):
-        return export_gcode(context)   
-    
+        obj = context.active_object
+
+        if context.mode != 'OBJECT':
+            self.report({'ERROR'}, "Switch to Object Mode before exporting")
+            return {'CANCELLED'}
+
+        # Duplicate
+        bpy.ops.object.duplicate(linked=False)
+        new_obj = context.active_object
+
+        # Hide Solidify
+        for mod in new_obj.modifiers:
+            if mod.type == 'SOLIDIFY':
+                mod.show_viewport = False
+
+        # Apply modifiers
+        bpy.ops.object.convert(target='MESH')
+
+        # Apply transforms
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+        # Export
+        try:
+            result = export_gcode(context, self)
+        except Exception as e:
+            bpy.data.objects.remove(new_obj, do_unlink=True)
+            self.report({'ERROR'}, f"Export failed: {e}")
+            return {'CANCELLED'}
+
+        # Clean up duplicate regardless of result
+        bpy.data.objects.remove(new_obj, do_unlink=True)
+
+        if result == {'CANCELLED'}:
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
     
     
     
