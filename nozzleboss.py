@@ -444,7 +444,8 @@ def export_gcode(context, operator=None):
                 prev_tool_color=tool_colors[e_edges[i+1]]   
 
 
-            _txt.append(extrude(P1, P2, E, F, prev_F)) 
+            gcode_line, prev_F = extrude(P1, P2, E, F, prev_F)
+            _txt.append(gcode_line)
 
 
     #print(_txt)

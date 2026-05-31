@@ -66,11 +66,11 @@ def extrude(coords, next, E, F, prev_F):
     
         #cweighted speed, put in extrude function later
     if F!=prev_F:          
-        gcode_cmd+=(' F'+str(int(F*60))+'\n')  
-        prev_F=F   
-                
+            gcode_cmd+=(' F'+str(int(F*60)))
+            prev_F=F
+        gcode_cmd += '\n'
     #return string of changed coords
-    return gcode_cmd
+    return gcode_cmd, prev_F
 
 def bevel_path(obj):#ver_idx wise only extrude, but in respect to layerheight and with vasemode detection
                     #and clean-up loose verts before extruding
