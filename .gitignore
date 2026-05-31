@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# VS Code
+.vscode/
+
+# Virtual environment
+.venv/
+venv/
+
+# Blender
+*.blend1
+*.blend2
+
+# Windows
+Thumbs.db
+desktop.ini
