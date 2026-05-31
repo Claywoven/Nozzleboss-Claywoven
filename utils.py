@@ -274,7 +274,7 @@ def read_weightmap_from_vcol(obj, vcol_name):
     for i in range(len(map)):#iter over v_idx in map in ascending order, to get parallel running color array for vert indices
 #    for v_idx in map:
         loop_idx = map[i]
-        col = obj.data.vertex_colors[vcol_name].data[loop_idx].color[:3]
+        col = obj.data.color_attributes[vcol_name].data[loop_idx].color[:3]
         
         luma = (col[0]*0.299+col[1]*0.587+col[2]*0.114)#/3 already normalized
         
