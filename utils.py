@@ -68,7 +68,7 @@ def extrude(coords, next, E, F, prev_F):
     if F!=prev_F:          
             gcode_cmd+=(' F'+str(int(F*60)))
             prev_F=F
-        gcode_cmd += '\n'
+    gcode_cmd += '\n'
     #return string of changed coords
     return gcode_cmd, prev_F
 
