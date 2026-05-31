@@ -456,8 +456,10 @@ def export_gcode(context, operator=None):
     gcode_txt.close()
 
     
-    print("took in seconds: ",time.time()-then)
-    return {'FINISHED'}     
+    print("took in seconds: ", time.time()-then)
+    if operator:
+        operator.report({'INFO'}, f"G-code exported to {output_path}")
+    return {'FINISHED'}    
     
 
 
