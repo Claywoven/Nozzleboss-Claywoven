@@ -255,12 +255,9 @@ def read_weightmap_from_vcol(obj, vcol_name):
         obj.data.polygons.foreach_get("vertices", polyverts)
         return polyverts
         
-    def read_loops(obj): #foreach_get doesn't have a 'loop_indices' attribute
-        loops=[]
-        for p in obj.data.polygons:
-            for li in p.loop_indices:
-                loops.append(li)           
-        return loops
+    def read_loops(obj):
+        return list(range(len(obj.data.loops)))
+    
     
     #map vert_idx to loop_index, loop index is corresponding to vert_color map entry for that vert_idx
     vertex_indices = read_polyverts(obj)
