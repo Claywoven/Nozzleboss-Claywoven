@@ -1,6 +1,6 @@
 # nozzleboss [Claywoven fork]
 
-###This fork is specifically aimed at improving the export workflow.  
+### This fork is specifically aimed at improving the export workflow.  
 - Makes a copy of the selected object
 - Applies active modifiers other than solidify before exporting 
 - Adds a Z-hop between large travel moves, taking into account the highest part printed so far, so you can print nonplaner design withough so much risk of crashing in a travel move - stil you need to check in g-code preview and take into account gantry and part cooling fan, but it saves a lot of time
