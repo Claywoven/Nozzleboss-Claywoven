@@ -363,17 +363,37 @@ def export_gcode(context, operator=None):
                                   
                                   
     ##islands of extrusions vert indices
+
+    max_z_so_far = 0.0
+    hop_clearance = 2.0  # mm above highest point printed so far, adjust to taste
+
     for island in sorted_islands:
-        travel_dist = (Vector(verts[island[0]])-Vector(P2)).length #only retract when travel is longer than...
+        e_edges = island[:int(len(island)/2)]
+        h_edges = island[int(len(island)/2):]
+
+        travel_dist = (Vector(verts[island[0]])-Vector(P2)).length  #only retract when travel is longer than...
+
         if travel_dist > 1:
+            next_pos = verts[island[0]]
+            hop_z    = round(max_z_so_far + hop_clearance, 4)
+            next_x   = round(float(next_pos[0]), 4)
+            next_y   = round(float(next_pos[1]), 4)
+            next_z   = round(float(next_pos[2]), 4)
+
             _txt.append('G10 \n')
+            _txt.append(f'G1 F{travel_speed*60}\n')    # set travel speed
+            _txt.append(f'G1 Z{hop_z}\n')              # 1. lift
+            _txt.append(f'G1 X{next_x} Y{next_y}\n')   # 2. move XY at safe height
+            _txt.append(f'G1 Z{next_z}\n')             # 3. descend to target
+            _txt.append(f'G1 F{extrusion_speed*60}\n') # restore extrusion speed
+            _txt.append('G11 \n')
+
+        else:
+            _txt.append(travel(P2, verts[island[0]], travel_speed*60, extrusion_speed*60))
+
         
-        #travel only from island to island    
-        _txt.append(travel(P2,verts[island[0]], travel_speed*60, extrusion_speed*60)) #verts[island[0]]=next coords
-        
-        if travel_dist > 1:
-            _txt.append('G11 \n')   
-            
+        island_zs = [verts[v][2] for v in e_edges]
+        max_z_so_far = max(max_z_so_far, max(island_zs))
             
         
         #extrusion and height edges per island, parallel arrays
