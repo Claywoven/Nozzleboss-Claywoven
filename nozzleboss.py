@@ -329,14 +329,12 @@ def export_gcode(context):
     prev_tool_color = -1
 
     #create vertex colors maps, most cases importer could already do that, but in case you have handdrawn/beveled extrusion path
-    if not obj.data.vertex_colors.get('Flow'):
-        obj.data.vertex_colors.new(name='Flow')
-    if not obj.data.vertex_colors.get('Speed'):
-        obj.data.vertex_colors.new(name='Speed')
-    if not obj.data.vertex_colors.get('Speed'):
-        obj.data.vertex_colors.new(name='Speed')
-    if not obj.data.vertex_colors.get('Tool'):
-        obj.data.vertex_colors.new(name='Tool')
+    if not obj.data.color_attributes.get('Flow'):
+      obj.data.color_attributes.new(name='Flow', type='FLOAT_COLOR', domain='CORNER')
+    if not obj.data.color_attributes.get('Speed'):
+      obj.data.color_attributes.new(name='Speed', type='FLOAT_COLOR', domain='CORNER')
+    if not obj.data.color_attributes.get('Tool'):
+      obj.data.color_attributes.new(name='Tool', type='FLOAT_COLOR', domain='CORNER')
         
         
     #Read extrusion and speed multiplier vertex color map

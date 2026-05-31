@@ -432,9 +432,9 @@ class GcodeModel:
                         bevel_path(bpy.data.objects[obj.name])
                         
                         #create vcol maps and textblocks
-                        obj.data.vertex_colors.new(name='Speed')
-                        obj.data.vertex_colors.new(name='Flow')
-                        obj.data.vertex_colors.new(name='Tool')
+                        for name in ['Speed', 'Flow', 'Tool']:
+                                if not obj.data.color_attributes.get(name):
+                                        obj.data.color_attributes.new(name=name, type='FLOAT_COLOR', domain='CORNER')
 
                         if not bpy.data.texts.get('T0'):
                             bpy.data.texts.new('T0')
