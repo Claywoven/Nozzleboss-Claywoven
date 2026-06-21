@@ -434,14 +434,14 @@ def export_gcode(context, operator=None):
             F = extrusion_speed*speed_weight 
 
             #check if tool color changed and append corresponding textblock
-            if tool_colors[e_edges[i+1]]!=prev_tool_color:
+            if tool_colors[e_edges[i]]!=prev_tool_color:
 
-                if tool_colors[e_edges[i+1]]<0.5:
+                if tool_colors[e_edges[i]]<0.5:
                     _txt.append(read_textblock('T1'))
                 else:
                     _txt.append(read_textblock('T0'))  
 
-                prev_tool_color=tool_colors[e_edges[i+1]]   
+                prev_tool_color=tool_colors[e_edges[i]]   
 
 
             gcode_line, prev_F = extrude(P1, P2, E, F, prev_F)
