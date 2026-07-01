@@ -427,7 +427,7 @@ def export_gcode(context, operator=None):
             height=np.linalg.norm(P3-P2)
 
             width=nozzle_diameter*1.5
-            multiplier = extrusion_weights[e_edges[i+1]]#
+            multiplier = extrusion_weights[e_edges[i]]#
             multiplier = remap(multiplier, nozzleboss.min_flow, nozzleboss.max_flow)
             E_volume=dist*height*width*multiplier
             E=E_volume/2.405281875  ##E axis in mm not mm³, 2.405 is 1mm of 1.75mm filament (r*(PI*r), 0.875*PI*0.875
