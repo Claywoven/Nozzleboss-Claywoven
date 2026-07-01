@@ -365,7 +365,7 @@ def export_gcode(context, operator=None):
     ##islands of extrusions vert indices
 
     max_z_so_far = 0.0
-    hop_clearance = 2.0  # mm above highest point printed so far, adjust to taste
+    hop_clearance = 10.0  # mm above highest point printed so far, adjust to taste
 
     for island in sorted_islands:
         e_edges = island[:int(len(island)/2)]
