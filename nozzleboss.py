@@ -371,7 +371,11 @@ def export_gcode(context, operator=None):
         e_edges = island[:int(len(island)/2)]
         h_edges = island[int(len(island)/2):]
 
-        travel_dist = (Vector(verts[island[0]])-Vector(P2)).length  #only retract when travel is longer than...
+        travel_dist = (Vector(verts[island[0]])-Vector(P2)).length
+
+        # speed for the very first extruded segment of this island
+        first_speed_weight = remap(speed_weights[island[0]], nozzleboss.min_speed, nozzleboss.max_speed)
+        restored_F = extrusion_speed * first_speed_weight  # mm/s
 
         if travel_dist > 1:
             next_pos = verts[island[0]]
@@ -381,16 +385,17 @@ def export_gcode(context, operator=None):
             next_z   = round(float(next_pos[2]), 4)
 
             _txt.append('G10 \n')
-            _txt.append(f'G1 F{travel_speed*60}\n')    # set travel speed
-            _txt.append(f'G1 Z{hop_z}\n')              # 1. lift
-            _txt.append(f'G1 X{next_x} Y{next_y}\n')   # 2. move XY at safe height
-            _txt.append(f'G1 Z{next_z}\n')             # 3. descend to target
-            _txt.append(f'G1 F{extrusion_speed*60}\n') # restore extrusion speed
+            _txt.append(f'G1 F{travel_speed*60}\n')
+            _txt.append(f'G1 Z{hop_z}\n')
+            _txt.append(f'G1 X{next_x} Y{next_y}\n')
+            _txt.append(f'G1 Z{next_z}\n')
+            _txt.append(f'G1 F{int(restored_F*60)}\n')  # restore with correct multiplier
             _txt.append('G11 \n')
 
         else:
-            _txt.append(travel(P2, verts[island[0]], travel_speed*60, extrusion_speed*60))
+            _txt.append(travel(P2, verts[island[0]], travel_speed*60, restored_F*60))
 
+        prev_F = restored_F  # keep tracker in sync with what was actually written
         
         island_zs = [verts[v][2] for v in e_edges]
         max_z_so_far = max(max_z_so_far, max(island_zs))
