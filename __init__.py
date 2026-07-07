@@ -2,7 +2,7 @@ bl_info = {
     "name": "NozzleBoss (Claywoven Fork)",
     "description": "G-code Importer/Editor/Re-Exporter",
     "author": "Jasper - Claywoven (based on Heinz Löpmeier's nozzleboss)",
-    "version": (0, 0, 2),
+    "version": (0, 0, 3),
     "blender": (4, 5, 0),   # min version = 4.5, 
     "location": "3D View > nozzleboss",
     "category": "Import-Export"
