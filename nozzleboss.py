@@ -351,11 +351,11 @@ def export_gcode(context, operator=None):
       obj.data.color_attributes.new(name='Tool', type='FLOAT_COLOR', domain='CORNER')
         
         
-    #Read extrusion and speed multiplier vertex color map
-    #gets right loop color for every v_idx
-    extrusion_weights = read_weightmap_from_vcol(obj, 'Flow')
-    speed_weights = read_weightmap_from_vcol(obj, 'Speed')
-    tool_colors = read_weightmap_from_vcol(obj, 'Tool')
+    #Build a directed-edge -> loop lookup once, then sample the correct
+    #face-corner color per segment instead of collapsing shared verts
+    #down to a single arbitrary corner (this was the bug behind faces
+    #not triggering their painted Tool color)
+    edge_to_loop = build_directed_edge_to_loop(obj.data)
     
 
     islands = find_islands(edges)
@@ -374,7 +374,8 @@ def export_gcode(context, operator=None):
         travel_dist = (Vector(verts[island[0]])-Vector(P2)).length
 
         # speed for the very first extruded segment of this island
-        first_speed_weight = remap(speed_weights[island[0]], nozzleboss.min_speed, nozzleboss.max_speed)
+        first_speed_raw = sample_corner_value(obj.data, 'Speed', edge_to_loop, e_edges[0], e_edges[1])
+        first_speed_weight = remap(first_speed_raw, nozzleboss.min_speed, nozzleboss.max_speed)
         restored_F = extrusion_speed * first_speed_weight  # mm/s
 
         if travel_dist > 1:
@@ -427,7 +428,7 @@ def export_gcode(context, operator=None):
             height=np.linalg.norm(P3-P2)
 
             width=nozzle_diameter*1.5
-            multiplier = extrusion_weights[e_edges[i]]#
+            multiplier = sample_corner_value(obj.data, 'Flow', edge_to_loop, e_edges[i], e_edges[i+1])
             multiplier = remap(multiplier, nozzleboss.min_flow, nozzleboss.max_flow)
             E_volume=dist*height*width*multiplier
             E=E_volume/2.405281875  ##E axis in mm not mm³, 2.405 is 1mm of 1.75mm filament (r*(PI*r), 0.875*PI*0.875
@@ -435,18 +436,20 @@ def export_gcode(context, operator=None):
 
     #calcF
 
-            speed_weight =  remap(speed_weights[e_edges[i]], nozzleboss.min_speed, nozzleboss.max_speed)
+            speed_raw = sample_corner_value(obj.data, 'Speed', edge_to_loop, e_edges[i], e_edges[i+1])
+            speed_weight = remap(speed_raw, nozzleboss.min_speed, nozzleboss.max_speed)
             F = extrusion_speed*speed_weight 
 
             #check if tool color changed and append corresponding textblock
-            if tool_colors[e_edges[i]]!=prev_tool_color:
+            tool_color = sample_corner_value(obj.data, 'Tool', edge_to_loop, e_edges[i], e_edges[i+1])
+            if tool_color != prev_tool_color:
 
-                if tool_colors[e_edges[i]]<0.5:
+                if tool_color < 0.5:
                     _txt.append(read_textblock('T1'))
                 else:
                     _txt.append(read_textblock('T0'))  
 
-                prev_tool_color=tool_colors[e_edges[i]]   
+                prev_tool_color = tool_color   
 
 
             gcode_line, prev_F = extrude(P1, P2, E, F, prev_F)

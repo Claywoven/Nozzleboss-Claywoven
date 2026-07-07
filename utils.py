@@ -248,37 +248,35 @@ def sort_Z(islands, verts):  #islands = vert_idx,  verts = verts_co
     
 ##map vertex indices (taken from poly.vertices) to loop_indices
 #so you can access vertex color with vert index instead of loop index
-def read_weightmap_from_vcol(obj, vcol_name):
-    
-    def read_polyverts(obj):#vert indices of polygon
-        polyverts = np.zeros((len(obj.data.polygons) * 4), dtype=int)
-        obj.data.polygons.foreach_get("vertices", polyverts)
-        return polyverts
-        
-    def read_loops(obj):
-        return list(range(len(obj.data.loops)))
-    
-    
-    #map vert_idx to loop_index, loop index is corresponding to vert_color map entry for that vert_idx
-    vertex_indices = read_polyverts(obj)
-    loop_indices = read_loops(obj)
-    #to get loop index and corresponding vertex color
-    map = {v_idx: l_idx for v_idx, l_idx in zip(vertex_indices, loop_indices)}
-    
-    
-    #order vcol loops by vert idx order
-    vcol=[]
-    for i in range(len(map)):#iter over v_idx in map in ascending order, to get parallel running color array for vert indices
-#    for v_idx in map:
-        loop_idx = map[i]
-        col = obj.data.color_attributes[vcol_name].data[loop_idx].color[:3]
-        
-        luma = (col[0]*0.299+col[1]*0.587+col[2]*0.114)#/3 already normalized
-        
-        vcol.append(luma)
-    
-    
-    return vcol #return one luma value per vert of weightmap
+def build_directed_edge_to_loop(mesh):
+    """Map (from_vert, to_vert) -> loop_index for the face-corner sitting on that
+    directed edge. Assumes each directed edge belongs to exactly one polygon,
+    which holds for a simple extruded ribbon of quads (bevel_path output), but
+    is NOT valid for general/manifold meshes with edges shared by two faces
+    in the same direction."""
+    edge_to_loop = {}
+    for poly in mesh.polygons:
+        verts = list(poly.vertices)
+        loops = list(poly.loop_indices)
+        n = len(verts)
+        for i in range(n):
+            v_curr, v_next = verts[i], verts[(i + 1) % n]
+            edge_to_loop[(v_curr, v_next)] = loops[i]
+    return edge_to_loop
+
+
+def sample_corner_value(mesh, vcol_name, edge_to_loop, v_from, v_to):
+    """Luma (0-1) of the face-corner color for the segment v_from->v_to.
+    Falls back to the reverse direction (e.g. last vertex of an island has no
+    forward edge), returns None if neither direction is found."""
+    loop_idx = edge_to_loop.get((v_from, v_to))
+    if loop_idx is None:
+        loop_idx = edge_to_loop.get((v_to, v_from))
+    if loop_idx is None:
+        return None
+
+    col = mesh.color_attributes[vcol_name].data[loop_idx].color[:3]
+    return col[0]*0.299 + col[1]*0.587 + col[2]*0.114
 
 
 
