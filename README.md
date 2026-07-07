@@ -2,7 +2,7 @@
 
 ### This fork is specifically aimed at improving the export workflow, when generating a tool path in blender using modifiers 
 - Makes a copy of the selected object
-- Applies active modifiers other than solidify before exporting 
+- Applies active modifiers (other than solidify) before exporting 
 - Adds a Z-hop between large travel moves, taking into account the highest part printed so far, so you can print nonplaner design withough so much risk of crashing in a travel move - stil you need to check in g-code preview and take into account gantry and part cooling fan, but it saves a lot of time
 - Warns if it cannot save as the file is open in a blocking program (slicer preview usually)
 - Fixes some bugs to work in Blender 4.5 and up
@@ -52,7 +52,7 @@ to see what can be done with path based printing.
 - Only supports relative extrusion mode, 'Start' G-code has M83 command by default.
 - .gcode file gets saved to same location as current .blend file 
 - When generating your own extrusion paths, keep the neccessary mesh structure in mind:
-   I recommend turning on ['Developer Extras and showing vertex indices'](https://blender.stackexchange.com/questions/158493/displaying-vertex-indices-in-blender-2-8-using-debug-mode)
+   In edit mode, go to edit mode mesh overlayers, and tick Indices check box to show the index value for selected face/edge/vert
    -Start with a simple 2D path/polyline
    - Make sure that your path's vertex indices are in linear order and start like this 0-1-2-3-...
    - Mesh operations like subdivide or ripping vertices can scramble the order to something like this 0-6-1-5-...
@@ -69,7 +69,7 @@ to see what can be done with path based printing.
 
 ### Installation
 - Download github repo as .zip
-- Blender-->Edit-->Preferences-->Add-ons 
-- Click "Install..." and select nozzleboss-master.zip (macOS might have auto-extracted your .zip file, just recompress the folder to .zip)
-- activate checkmark for 'Import-Export: nozzleboss' in Add-on list
-- Addon appears in N-Panel (press 'n' in viewport) and NOT via File-->Export/Import
+- If you are using safari make sure you disable the option to open safe files after download, as this will unzip and you need to add the plugin as a zip file to blender
+- you can drag the zip file into blender directly and an option to install the plugin should pop-up. 
+- if you have the original Nozzelboss plugin installed you need to uninstall this first, before dragging in this one, as they are named differently but are very similar, blender will not update from the original, but try and run both at the same time, which will fail.
+
