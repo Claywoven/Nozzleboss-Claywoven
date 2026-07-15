@@ -419,13 +419,13 @@ def export_gcode(context, operator=None):
             #coord for seg length and height
             P1 = verts[e_edges[i]]
             P2 = verts[e_edges[i+1]]
-            P3 = verts[h_edges[i+1]] 
+            P3 = verts[h_edges[i]] 
 
 
 
     #calcE
             dist = np.linalg.norm(P2-P1)
-            height=np.linalg.norm(P3-P2)
+            height=np.linalg.norm(P3-P1)
 
             width=nozzle_diameter*1.5
             multiplier = sample_corner_value(obj.data, 'Flow', edge_to_loop, e_edges[i], e_edges[i+1])
