@@ -246,32 +246,37 @@ def sort_Z(islands, verts):  #islands = vert_idx,  verts = verts_co
     
     
     
-##map vertex indices (taken from poly.vertices) to loop_indices
-#so you can access vertex color with vert index instead of loop index
-def build_directed_edge_to_loop(mesh):
-    """Map (from_vert, to_vert) -> loop_index for the face-corner sitting on that
-    directed edge. Assumes each directed edge belongs to exactly one polygon,
-    which holds for a simple extruded ribbon of quads (bevel_path output), but
-    is NOT valid for general/manifold meshes with edges shared by two faces
-    in the same direction."""
-    edge_to_loop = {}
+def build_edge_to_loops(mesh):
+    """Map an undirected edge {v1, v2} -> {v1: loop_idx_at_v1, v2: loop_idx_at_v2}
+    within whichever single polygon owns that edge. Unlike a directed-edge dict,
+    this doesn't depend on the face's winding direction matching the direction
+    you query in - you look up the loop for the specific vertex you want,
+    explicitly, every time."""
+    edge_to_loops = {}
     for poly in mesh.polygons:
         verts = list(poly.vertices)
         loops = list(poly.loop_indices)
         n = len(verts)
         for i in range(n):
             v_curr, v_next = verts[i], verts[(i + 1) % n]
-            edge_to_loop[(v_curr, v_next)] = loops[i]
-    return edge_to_loop
+            loop_curr, loop_next = loops[i], loops[(i + 1) % n]
+            key = frozenset((v_curr, v_next))
+            edge_to_loops[key] = {v_curr: loop_curr, v_next: loop_next}
+    return edge_to_loops
 
 
-def sample_corner_value(mesh, vcol_name, edge_to_loop, v_from, v_to):
+def sample_corner_value(mesh, vcol_name, edge_to_loops, v_from, v_to, use_vertex=None):
     """Luma (0-1) of the face-corner color for the segment v_from->v_to.
-    Falls back to the reverse direction (e.g. last vertex of an island has no
-    forward edge), returns None if neither direction is found."""
-    loop_idx = edge_to_loop.get((v_from, v_to))
-    if loop_idx is None:
-        loop_idx = edge_to_loop.get((v_to, v_from))
+    use_vertex picks which endpoint's own corner to sample - defaults to
+    v_from (start of the move/segment). Returns None if the edge isn't in
+    the map, or if the requested vertex has no corner in that face (e.g.
+    querying the far end when only one direction has a triangle - shouldn't
+    happen on the quad ribbon topology this add-on generates)."""
+    loops = edge_to_loops.get(frozenset((v_from, v_to)))
+    if loops is None:
+        return None
+    target = use_vertex if use_vertex is not None else v_from
+    loop_idx = loops.get(target)
     if loop_idx is None:
         return None
 
