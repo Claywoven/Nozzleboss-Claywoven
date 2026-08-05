@@ -265,6 +265,16 @@ def build_edge_to_loops(mesh):
     return edge_to_loops
 
 
+def linear_to_srgb(c):
+    """Convert a linear color-attribute value back to perceptual (sRGB) space,
+    so a value that was picked/painted as 'visual 0.5' reads back as 0.5
+    instead of the linear-encoded ~0.214 that Blender stores internally."""
+    c = max(0.0, min(1.0, c))
+    if c <= 0.0031308:
+        return c * 12.92
+    return 1.055 * (c ** (1 / 2.4)) - 0.055
+
+
 def sample_corner_value(mesh, vcol_name, edge_to_loops, v_from, v_to, use_vertex=None):
     """Luma (0-1) of the face-corner color for the segment v_from->v_to.
     use_vertex picks which endpoint's own corner to sample - defaults to
@@ -281,7 +291,8 @@ def sample_corner_value(mesh, vcol_name, edge_to_loops, v_from, v_to, use_vertex
         return None
 
     col = mesh.color_attributes[vcol_name].data[loop_idx].color[:3]
-    return col[0]*0.299 + col[1]*0.587 + col[2]*0.114
+    luma = col[0]*0.299 + col[1]*0.587 + col[2]*0.114
+    return linear_to_srgb(luma)
 
 
 
