@@ -19,9 +19,6 @@ from bpy.types import (Panel,
                        )
                        
                        
-from bpy_extras.io_utils import ImportHelper
-
-from .parser import *
 from .utils import *
 
 
@@ -168,23 +165,7 @@ class NOZZLEBOSS_PT_Panel(bpy.types.Panel):
         obj = context.object
         
 
-        col = layout.box().column(align=True)
-        col.label(text="Import settings:")
-   
-        
-        row = col.row(align=True)
-        row.prop(nozzleboss, 'subdivide')
-
-        sub = row.row()
-        sub.prop(nozzleboss, "max_segment_size")  
-        sub.enabled =  nozzleboss.subdivide #sub is not grayed out when 'linesegmentatio/subdivide/ bool is True
-         
-         
-        col2=col.column(align=True) 
-        col2.scale_y=1.5
-        col2.separator(factor=1)
-        col2.operator("wm.gcode_import") #call it by id name, since specified, otherwise just takes class name
-        col.separator(factor=1)
+        # Import UI removed — plugin now focuses on export only
 
         
         col = layout.box().column(align=True)
@@ -249,31 +230,7 @@ class NOZZLEBOSS_PT_Panel(bpy.types.Panel):
         
     
 
-def import_gcode(context, filepath):
-        scene = context.scene
-        nozzleboss = scene.nozzleboss
-        
-        import time
-        then = time.time()
-
-        parse = GcodeParser()
-        model = parse.parseFile(filepath)
-        
-        if nozzleboss.subdivide:
-            model.subdivide(nozzleboss.max_segment_size)
-        model.classifySegments()
-        if nozzleboss.split_layers:
-            model.draw(split_layers=True)
-        else:
-            model.draw(split_layers=False)
-            
-        
-
-        now=time.time()
-        print("then", then)
-        print("importing Gcode took", now-then)
-
-        return {'FINISHED'} 
+        # import functionality removed
     
     
 def export_gcode(context, operator=None):
@@ -468,23 +425,7 @@ def export_gcode(context, operator=None):
     
 
 
-class WM_OT_gcode_import(Operator, ImportHelper):
-    """Import Gcode, travel lines don't get drawn"""
-    bl_idname = "wm.gcode_import"  
-    bl_label = "Import G-code"
-
-    # ImportHelper mixin class uses this
-    filename_ext = ".txt"
-
-    filter_glob: StringProperty(
-        default="*.*",
-        options={'HIDDEN'},
-        maxlen=255,  # Max internal buffer length, longer would be clamped.
-    )
-    
-    
-    def execute(self, context):
-        return import_gcode(context, self.filepath)   
+# Import operator removed
     
     
     
@@ -545,7 +486,6 @@ class WM_OT_gcode_export(Operator):
 def register():
     bpy.utils.register_class(NOZZLEBOSS_PT_Panel)
     bpy.utils.register_class(gcode_settings)
-    bpy.utils.register_class(WM_OT_gcode_import)
     bpy.utils.register_class(WM_OT_gcode_export)
     bpy.types.Scene.nozzleboss = bpy.props.PointerProperty(type= gcode_settings)
  
@@ -554,6 +494,8 @@ def register():
 
 def unregister():
     bpy.utils.unregister_class(NOZZLEBOSS_PT_Panel)
+    bpy.utils.unregister_class(gcode_settings)
+    bpy.utils.unregister_class(WM_OT_gcode_export)
 
 
 
