@@ -35,6 +35,11 @@ class gcode_settings(bpy.types.PropertyGroup):
         name="Speed Multiplier weightmap - grayscale of vertex color gets mapped to min and max range",
         default="Speed"
         )
+
+    fan_map: StringProperty(
+        name="Fan Speed weightmap - grayscale of vertex color gets mapped to min and max range",
+        default="Fan"
+        )
         
          
     T0: StringProperty(
@@ -102,6 +107,21 @@ class gcode_settings(bpy.types.PropertyGroup):
         name = "",
         description = "Factor the extrusion speed value is multiplied with based on the underlying vertex color of that segment",
         default = 1.
+        )
+
+    min_fan: FloatProperty(
+        name = "",
+        description = "Fan speed (0-1, mapped to M106 S0-S255) at the low end of the underlying vertex color of that segment",
+        default = 0.,
+        min = 0.,
+        max = 1.
+        )
+    max_fan: FloatProperty(
+        name = "",
+        description = "Fan speed (0-1, mapped to M106 S0-S255) at the high end of the underlying vertex color of that segment",
+        default = 1.,
+        min = 0.,
+        max = 1.
         )
         
     
@@ -194,6 +214,14 @@ class NOZZLEBOSS_PT_Panel(bpy.types.Panel):
         row.separator()   
         row.prop(nozzleboss, "min_speed")
         row.prop(nozzleboss, "max_speed")
+
+        col.separator(factor=1.5)
+        # col.label(text=" ")
+        row = col.row(align=True)
+        row.label(text="Fan Speed:")
+        row.separator()
+        row.prop(nozzleboss, "min_fan")
+        row.prop(nozzleboss, "max_fan")
      
         col.separator(factor=2)
     
@@ -298,6 +326,7 @@ def export_gcode(context, operator=None):
     P2=(0,0,0)
     prev_F=-1
     prev_tool_color = -1
+    prev_fan_speed = -1
 
     #create vertex colors maps, most cases importer could already do that, but in case you have handdrawn/beveled extrusion path
     if not obj.data.color_attributes.get('Flow'):
@@ -306,6 +335,8 @@ def export_gcode(context, operator=None):
       obj.data.color_attributes.new(name='Speed', type='FLOAT_COLOR', domain='CORNER')
     if not obj.data.color_attributes.get('Tool'):
       obj.data.color_attributes.new(name='Tool', type='FLOAT_COLOR', domain='CORNER')
+    if not obj.data.color_attributes.get('Fan'):
+      obj.data.color_attributes.new(name='Fan', type='FLOAT_COLOR', domain='CORNER')
         
         
     edge_to_loops = build_edge_to_loops(obj.data)
@@ -404,6 +435,13 @@ def export_gcode(context, operator=None):
 
                 prev_tool_color = tool_color   
 
+            #check if fan speed changed and append M106
+            fan_raw = sample_corner_value(obj.data, 'Fan', edge_to_loops, e_edges[i], e_edges[i+1], use_vertex=e_edges[i])
+            fan_weight = remap(fan_raw, nozzleboss.min_fan, nozzleboss.max_fan)
+            fan_speed = int(round(fan_weight*255))
+            if fan_speed != prev_fan_speed:
+                _txt.append(f'M106 S{fan_speed}\n')
+                prev_fan_speed = fan_speed
 
             gcode_line, prev_F = extrude(P1, P2, E, F, prev_F)
             _txt.append(gcode_line)
