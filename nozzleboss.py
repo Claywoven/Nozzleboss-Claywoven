@@ -187,8 +187,8 @@ class NOZZLEBOSS_PT_Panel(bpy.types.Panel):
         row.prop(nozzleboss, "min_flow")
         row.prop(nozzleboss, "max_flow")
 
-        col.separator()
-        col.label(text=" ") 
+        col.separator(factor=1.5)
+        # col.label(text=" ") 
         row = col.row(align=True)
         row.label(text="Speed Multiplier:")
         row.separator()   
