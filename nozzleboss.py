@@ -215,13 +215,13 @@ class NOZZLEBOSS_PT_Panel(bpy.types.Panel):
         row.prop(nozzleboss, "min_speed")
         row.prop(nozzleboss, "max_speed")
 
-        col.separator(factor=1.5)
-        # col.label(text=" ")
-        row = col.row(align=True)
-        row.label(text="Fan Speed:")
-        row.separator()
-        row.prop(nozzleboss, "min_fan")
-        row.prop(nozzleboss, "max_fan")
+        # col.separator(factor=1.5)
+        # # col.label(text=" ")
+        # row = col.row(align=True)
+        # row.label(text="Fan Speed:")
+        # row.separator()
+        # row.prop(nozzleboss, "min_fan")
+        # row.prop(nozzleboss, "max_fan")
      
         col.separator(factor=2)
     
