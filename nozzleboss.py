@@ -20,8 +20,11 @@ from bpy.types import (Panel,
                        
                        
 from .utils import *
+from . import overlay
 
 
+def _overlay_cavity_update(self, context):
+    overlay.apply_cavity(self.overlay_cavity)
 
 
 
@@ -123,8 +126,21 @@ class gcode_settings(bpy.types.PropertyGroup):
         min = 0.,
         max = 1.
         )
-        
-    
+
+    overlay_attribute: StringProperty(
+        name="",
+        description="Attribute currently previewed in the viewport, empty when the overlay is off",
+        default=""
+        )
+
+    overlay_cavity: BoolProperty(
+        name="Cavity",
+        description="Add edge definition - flat lighting is required for the gradient to stay readable, "
+                    "but it removes form cues",
+        default=True,
+        update=_overlay_cavity_update
+        )
+
     nozzle_diameter: FloatProperty(
         name = "",
         description = "Nozzle diameter - used to calculate the extrusion width",
@@ -195,58 +211,49 @@ class NOZZLEBOSS_PT_Panel(bpy.types.Panel):
         col.prop(nozzleboss, "extrusion_speed", text='Extrusion Speed')
 
         col.separator(factor=1.5)
-        
-        row=col.row() #aus col new row machen, beginnt neue zeile und startet dann in der reihe
-        row.label(text=" ") 
-        row.separator(factor=2)
-        row.label(text="min:") 
-        row.label(text="max:") 
-        row = col.row(align=True)
-        row.label(text="Flow Multiplier:")
-        row.separator()
-        row.prop(nozzleboss, "min_flow")
-        row.prop(nozzleboss, "max_flow")
 
-        col.separator(factor=1.5)
-        # col.label(text=" ") 
-        row = col.row(align=True)
-        row.label(text="Speed Multiplier:")
-        row.separator()   
-        row.prop(nozzleboss, "min_speed")
-        row.prop(nozzleboss, "max_speed")
+        label_width = 1 / 3
 
-        # col.separator(factor=1.5)
-        # # col.label(text=" ")
-        # row = col.row(align=True)
-        # row.label(text="Fan Speed:")
-        # row.separator()
-        # row.prop(nozzleboss, "min_fan")
-        # row.prop(nozzleboss, "max_fan")
-     
-        col.separator(factor=2)
-    
-        #col.label(text="Tool change based on color:") 
-        col.prop(nozzleboss, 'tool_color')
-       
-        
-        row = col.row(align=True)
-        row.enabled = nozzleboss.tool_color
-        row.prop(nozzleboss, "color_T0", text="")
-        row.prop_search(nozzleboss, "T0", bpy.data, "texts", text="")   
-        row.separator(factor=2)   
-        row.prop(nozzleboss, "color_T1", text="")
-        row.prop_search(nozzleboss, "T1", bpy.data, "texts", text="")   
+        split = col.split(factor=label_width)
+        split.label(text=" ")
+        header = split.row()
+        for text in ("min:", "max:"):
+            sub = header.row()
+            sub.alignment = 'CENTER'
+            sub.label(text=text)
 
+        mesh = None
+        if obj and obj.type == 'MESH':
+            depsgraph = context.evaluated_depsgraph_get()
+            mesh = obj.evaluated_get(depsgraph).data
 
-        col.separator(factor=2)
+        for attr_name, label, _bounds, integer in overlay.ATTRIBUTES:
+            split = col.split(factor=label_width)
+            name = split.row()
+            name.alignment = 'RIGHT'
+            name.label(text=label)
 
-        row=col.row(align=True) #start new column in row mode (row mode every element gets put behind each other)
-        row.label(text='Start G-code:')
-        row.prop_search(nozzleboss, "start", bpy.data, "texts", text="")   
-        row=col.row(align=True)
-        row.label(text='End G-code:')
-        row.prop_search(nozzleboss, "end", bpy.data, "texts", text="")   
-        
+            value = split.row(align=True)
+            minmax = get_attribute_range(mesh, attr_name) if mesh else None
+            if minmax is None:
+                value.alert = True
+                value.operator("nozzleboss.toggle_overlay", text="missing").attribute = attr_name
+            else:
+                if integer:
+                    text = f"{round(minmax[0])}  -  {round(minmax[1])}"
+                else:
+                    text = f"{minmax[0]:.3f}  -  {minmax[1]:.3f}"
+                button = value.operator(
+                    "nozzleboss.toggle_overlay",
+                    text=text,
+                    depress=nozzleboss.overlay_attribute == attr_name,
+                )
+                button.attribute = attr_name
+
+        if nozzleboss.overlay_attribute:
+            col.separator(factor=1.5)
+            overlay.draw_overlay_settings(col, context)
+
         col.separator(factor=2)
         row=col.row(align=True) 
         #row.label(text='Start G-code:')
@@ -489,9 +496,10 @@ class WM_OT_gcode_export(Operator):
         bpy.ops.object.duplicate(linked=False)
         new_obj = context.active_object
 
-        # Hide Solidify
+        # Hide Solidify, and the overlay display modifier so preview colours
+        # are never baked into the exported mesh
         for mod in new_obj.modifiers:
-            if mod.type == 'SOLIDIFY':
+            if mod.type == 'SOLIDIFY' or mod.name == overlay.MODIFIER:
                 mod.show_viewport = False
 
         # Apply modifiers
@@ -525,12 +533,14 @@ def register():
     bpy.utils.register_class(NOZZLEBOSS_PT_Panel)
     bpy.utils.register_class(gcode_settings)
     bpy.utils.register_class(WM_OT_gcode_export)
+    overlay.register()
     bpy.types.Scene.nozzleboss = bpy.props.PointerProperty(type= gcode_settings)
- 
+
 
 
 
 def unregister():
+    overlay.unregister()
     bpy.utils.unregister_class(NOZZLEBOSS_PT_Panel)
     bpy.utils.unregister_class(gcode_settings)
     bpy.utils.unregister_class(WM_OT_gcode_export)
