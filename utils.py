@@ -185,12 +185,10 @@ def read_scalar_attribute(attr):
     return values.astype(np.float64)
 
 
-def get_attribute_range(mesh, name):
-    """Return (min, max) of a scalar attribute's values, or None if it doesn't exist."""
-    attr = mesh.attributes.get(name)
-    if attr is None:
+def read_boolean_attribute(attr):
+    """Values of a BOOLEAN attribute as a bool array, or None for other types."""
+    if attr.data_type != 'BOOLEAN' or len(attr.data) == 0:
         return None
-    values = read_scalar_attribute(attr)
-    if values is None:
-        return None
-    return float(values.min()), float(values.max())
+    values = np.empty(len(attr.data), dtype=bool)
+    attr.data.foreach_get('value', values)
+    return values

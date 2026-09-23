@@ -133,6 +133,11 @@ class gcode_settings(bpy.types.PropertyGroup):
         default=""
         )
 
+    overlay_object: StringProperty(
+        name="Overlay Object",
+        description="Object carrying the overlay; it follows the active object",
+        default="",
+        )
     overlay_cavity: BoolProperty(
         name="Cavity",
         description="Add edge definition - flat lighting is required for the gradient to stay readable, "
@@ -193,6 +198,45 @@ class NOZZLEBOSS_PT_Panel(bpy.types.Panel):
 #        except: return False
 
 
+    # Width of the label column; the min/max button takes the rest.
+    label_width = 1 / 3
+
+    def draw_report_header(self, col):
+        split = col.split(factor=self.label_width)
+        split.label(text=" ")
+        header = split.row()
+        for text in ("min:", "max:"):
+            sub = header.row()
+            sub.alignment = 'CENTER'
+            sub.label(text=text)
+
+    def draw_report_row(self, col, context, mesh, attr_name, label):
+        """A right-aligned label and one button reporting the attribute's
+        min - max, which toggles its viewport overlay. Problems (missing
+        attribute or mask) show as a red button instead."""
+        split = col.split(factor=self.label_width)
+        name = split.row()
+        name.alignment = 'RIGHT'
+        name.label(text=label)
+
+        value = split.row(align=True)
+        minmax, problem = overlay.attribute_status(mesh, attr_name)
+        if problem is not None:
+            value.alert = True
+            value.operator("nozzleboss.toggle_overlay", text=problem).attribute = attr_name
+            return
+
+        if overlay.is_integer_attribute(mesh, attr_name):
+            text = f"{round(minmax[0])}  -  {round(minmax[1])}"
+        else:
+            text = f"{minmax[0]:.3f}  -  {minmax[1]:.3f}"
+        button = value.operator(
+            "nozzleboss.toggle_overlay",
+            text=text,
+            depress=overlay.is_showing(context, context.object, attr_name),
+        )
+        button.attribute = attr_name
+
     def draw(self, context): 
         layout = self.layout 
 
@@ -212,43 +256,20 @@ class NOZZLEBOSS_PT_Panel(bpy.types.Panel):
 
         col.separator(factor=1.5)
 
-        label_width = 1 / 3
+        mesh = overlay.evaluated_mesh(obj)
 
-        split = col.split(factor=label_width)
-        split.label(text=" ")
-        header = split.row()
-        for text in ("min:", "max:"):
-            sub = header.row()
-            sub.alignment = 'CENTER'
-            sub.label(text=text)
+        self.draw_report_header(col)
+        for attr_name, label, _bounds, _integer in overlay.ATTRIBUTES:
+            self.draw_report_row(col, context, mesh, attr_name, label)
 
-        mesh = None
-        if obj and obj.type == 'MESH':
-            depsgraph = context.evaluated_depsgraph_get()
-            mesh = obj.evaluated_get(depsgraph).data
-
-        for attr_name, label, _bounds, integer in overlay.ATTRIBUTES:
-            split = col.split(factor=label_width)
-            name = split.row()
-            name.alignment = 'RIGHT'
-            name.label(text=label)
-
-            value = split.row(align=True)
-            minmax = get_attribute_range(mesh, attr_name) if mesh else None
-            if minmax is None:
-                value.alert = True
-                value.operator("nozzleboss.toggle_overlay", text="missing").attribute = attr_name
-            else:
-                if integer:
-                    text = f"{round(minmax[0])}  -  {round(minmax[1])}"
-                else:
-                    text = f"{minmax[0]:.3f}  -  {minmax[1]:.3f}"
-                button = value.operator(
-                    "nozzleboss.toggle_overlay",
-                    text=text,
-                    depress=nozzleboss.overlay_attribute == attr_name,
-                )
-                button.attribute = attr_name
+        # Masked values only exist when the node tree makes them, so the
+        # section appears only then.
+        masked = overlay.masked_attributes(mesh) if mesh else []
+        if masked:
+            col.separator(factor=1.5)
+            self.draw_report_header(col)
+            for attr_name, base in masked:
+                self.draw_report_row(col, context, mesh, attr_name, base + ":")
 
         if nozzleboss.overlay_attribute:
             col.separator(factor=1.5)
