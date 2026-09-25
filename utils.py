@@ -170,3 +170,25 @@ def sample_corner_value(mesh, vcol_name, edge_to_loops, v_from, v_to, use_vertex
 def remap(weight, min, max):
     remapped_speed = np.interp(weight,[0,1],[min,max])
     return remapped_speed
+
+
+SCALAR_ATTRIBUTE_DTYPES = {'FLOAT': np.float32, 'INT': np.int32}
+
+
+def read_scalar_attribute(attr):
+    """Values of a FLOAT or INT attribute as a float64 array, or None for other types."""
+    dtype = SCALAR_ATTRIBUTE_DTYPES.get(attr.data_type)
+    if dtype is None or len(attr.data) == 0:
+        return None
+    values = np.empty(len(attr.data), dtype=dtype)
+    attr.data.foreach_get('value', values)
+    return values.astype(np.float64)
+
+
+def read_boolean_attribute(attr):
+    """Values of a BOOLEAN attribute as a bool array, or None for other types."""
+    if attr.data_type != 'BOOLEAN' or len(attr.data) == 0:
+        return None
+    values = np.empty(len(attr.data), dtype=bool)
+    attr.data.foreach_get('value', values)
+    return values
