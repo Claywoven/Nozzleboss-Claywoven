@@ -1,7 +1,7 @@
 # Nozzleboss [Claywoven fork]
 ## Building a toolpath in Blender
 
-This plugin is specifically built to help interpret and export toolpaths that are created in Blender. It builds on the ideas of the original [nozzleboss](https://github.com/Heinz-Loepmeier/nozzleboss) plugin by Heinz Löpmeier, which uses a ribbon to describe the path: the ribbon's height controls the layer height. This allows non-planar toolpaths, and layer heights that can be sculpted in real time in Blender.
+This plugin is specifically built to help interpret and export toolpaths that are created in Blender. It builds on the ideas of the original [nozzleboss](https://github.com/Heinz-Loepmeier/nozzleboss) plugin by Heinz Löpmeier, which uses a ribbon to describe the path. The ribbon's height controls the layer height. This allows non-planar toolpaths, and layer heights that can be sculpted in real time in Blender.
 
 ![using Blender sculpting directly on a mesh built in Geometry Nodes](docs/images/intro.webp)
 
