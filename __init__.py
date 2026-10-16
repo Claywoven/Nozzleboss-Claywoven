@@ -1,53 +1,40 @@
 bl_info = {
     "name": "NozzleBoss (Claywoven Fork)",
-    "description": "G-code Importer/Editor/Re-Exporter",
+    "description": "Exports Geometry Nodes tool paths to G-code",
     "author": "Jasper - Claywoven (based on Heinz Löpmeier's nozzleboss)",
-    "version": (0, 0, 4),
-    "blender": (4, 5, 0),   # min version = 4.5, 
+    "version": (0, 1, 0),
+    "blender": (5, 2, 0),   # the GN viewport overlay needs 5.2+
     "location": "3D View > nozzleboss",
     "category": "Import-Export"
 }
 
 
 
+# Dependency order: each module only imports the ones above it.
+_MODULES = ("attributes", "colormaps", "draw_cache", "gcode_write", "node_tree", "gcode_source",
+            "mesh_read", "overlay", "printer", "legacy", "settings", "export", "panel")
+
 if "bpy" in locals():
     import importlib
-    importlib.reload(utils) 
-    importlib.reload(parser) 
-    importlib.reload(nozzleboss) 
-
-
+    for _name in _MODULES:
+        importlib.reload(globals()[_name])
 else:
-    from . import utils
-    from . import parser
-    from . import nozzleboss
-    
+    from . import (attributes, colormaps, draw_cache, gcode_write, node_tree, gcode_source,
+                   mesh_read, overlay, printer, legacy, settings, export, panel)
+
 import bpy
-from bpy.props import PointerProperty
-    
-    
-    
-    
+
+
+# Registered in this order, unregistered in reverse: the panel's cache and
+# settings first (the overlay and panel read scene.nozzleboss), the panel last.
+_REGISTERED = (draw_cache, settings, overlay, export, panel)
 
 
 def register():
-    bpy.utils.register_class(nozzleboss.NOZZLEBOSS_PT_Panel)
-    bpy.utils.register_class(nozzleboss.gcode_settings)
-    bpy.utils.register_class(nozzleboss.WM_OT_gcode_import)
-    bpy.utils.register_class(nozzleboss.WM_OT_gcode_export)
-    bpy.types.Scene.nozzleboss = bpy.props.PointerProperty(type= nozzleboss.gcode_settings)
- 
-
+    for module in _REGISTERED:
+        module.register()
 
 
 def unregister():
-    bpy.utils.unregister_class(nozzleboss.NOZZLEBOSS_PT_Panel)
-    bpy.utils.unregister_class(nozzleboss.gcode_settings)
-    bpy.utils.unregister_class(nozzleboss.WM_OT_gcode_import)
-    bpy.utils.unregister_class(nozzleboss.WM_OT_gcode_export)
-    del bpy.types.Scene.nozzleboss
-
-
-
-if __name__ == "__main__":
-    register()
+    for module in reversed(_REGISTERED):
+        module.unregister()

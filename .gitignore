@@ -17,3 +17,7 @@ venv/
 # Windows
 Thumbs.db
 desktop.ini
+
+.devcontainer/
+# Large test files: moved between computers by hand, never committed
+Design/large files/
