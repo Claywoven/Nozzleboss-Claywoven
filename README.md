@@ -1,75 +1,105 @@
-# nozzleboss [Claywoven fork]
+# Nozzleboss [Claywoven fork]
+## Building a toolpath in Blender
 
-### This fork is specifically aimed at improving the export workflow, when generating a tool path in blender using modifiers 
-- Makes a copy of the selected object
-- Applies active modifiers (other than solidify) before exporting 
-- Adds a Z-hop between large travel moves, taking into account the highest part printed so far, so you can print nonplaner design withough so much risk of crashing in a travel move - stil you need to check in g-code preview and take into account gantry and part cooling fan, but it saves a lot of time
-- Warns if it cannot save as the file is open in a blocking program (slicer preview usually)
-- Fixes some bugs to work in Blender 4.5 and up
+This plugin is specifically built to help interpret and export toolpaths that are created in Blender. It builds on the ideas of the original [nozzleboss](https://github.com/Heinz-Loepmeier/nozzleboss) plugin by Heinz Löpmeier, which uses a ribbon to describe the path: the ribbon's height controls the layer height. This allows non-planar toolpaths, and layer heights that can be sculpted in real time in Blender.
 
+![using Blender sculpting directly on a mesh built in Geometry Nodes](docs/images/intro.webp)
 
-### nozzleboss is a G-code importer and re-exporter Add-on for Blender.  
-![intro_extrasmall](https://user-images.githubusercontent.com/17910445/150960353-a4e39422-3d2e-4e46-be27-bc2b35ba813f.gif)  
-_The G-code gets converted to a mesh and can be modified with all of Blenders modeling tools_
- 
-### Extrusion/Speed multiplier
-Besides having vertex level control over the extrusion path, the Add-on allows you to create   
-texture-based 'Flow' and 'Speed' weight maps using Blenders vertex paint mode.  
-The 'Speed' multiplier works exactly like Mark Wheadons ['Velocity painting'](https://github.com/MarkWheadon/velocity-painting) technique, except  
-you can use Blenders vertex colors to get the texture onto the model, which is quite convenient.
+## Build the toolpath in Blender and Settings are stored on objects, not in the exporter
 
+Any change to the G-code toolpath is possible with either:
+  - Blender's sculpting tools, to move the toolpath, or
+  - Geometry Nodes, to select parts of the toolpath to modify or to build new
+    spiralised contours, or change attributes such as speed and flow.
 
-![3_settings_nozzleboss_small](https://user-images.githubusercontent.com/17910445/151602354-62088802-b811-4b28-ba15-ea538a656761.png)  
-_3 different min and max Flow/Speed multiplier settings_
+The aim is to separate the settings that shape the G-code from the
+exporter as much as possible. All the data needed to rebuild your G-code toolpath is stored on objects in the .blend file. Text such as the start and end code is stored as strings in Geometry Nodes, where the exporter reads it to build the finished toolpath.
 
-### Tool selection based on vertex colors
-Concept of weight maps can be extended to other G-code commands as well.  
-By default every import also creates a vertex color map called 'Tool', which depending  
-on the underlying color, will insert a different G-code command for each color.  
-To edit such a command go to Blenders text editor and choose the textblock called 'T0',  
-which by default is represented by the color black and textblock 'T1' for the vertex color white.
-Everytime the color changes the provided text is inserted into the G-code
+Objects are therefore much more portable: you don't depend on extra text documents that have to be kept in sync with your design. This is something I found hard to handle in the original nozzleboss
 
+![resulting print](docs/images/real_print.webp)
 
-![scratch_extrasmall](https://user-images.githubusercontent.com/17910445/150961183-9e54d273-54b1-474b-a630-9ebda929d559.gif)  
-_Building extrusion paths from scratch and changing colors every other layer with 'Tool' vertex color map_  
-_I'm using an array modifier here and sculpting the paths with a hook/smooth brush while the Z-axis is locked._
+## Colour Overlays
+I have added a colour overlay that lets you preview variables that are added to the toolpath, such as pauses, changes in fan speed, extrusion speed, and flow rate or custom G-code snippets. 
 
+I have built it to be as flexible as possible, so that I (or you) can extend the functionality for new projects, by using shareable assets that build different functions that are not normally available in a slicer. While using Blender's 3D viewport to preview changes.
 
+![the colour overlay previewing values on a toolpath](docs/images/overlays.webp)
 
-If you are not familiar with Blender and get any errors on export, try starting with this [example.blend](https://github.com/Heinz-Loepmeier/misc/blob/main/nozzleboss_blend.zip) file here,  
-it has a pre-sliced and textured test cube, and all relevant windows opened up.  
-Change the 'Start' and 'End' G-code for your printer and try to export.  
-Detailed explanation of every setting is in the [Wiki](https://github.com/Heinz-Loepmeier/nozzleboss/wiki).  
-For development updates and some occasional howtos follow me on [Twitter](https://twitter.com/nozzleboss) or have a look at my [Instagram](https://www.instagram.com/nozzleboss/)  
-to see what can be done with path based printing.
+## I have an Asset library of Geometry Nodes groups,  on my  [Patreon](https://www.patreon.com/cw/Claywoven) that help with this process.  
 
+The plugin is designed to be used with Geometry Nodes: you build the toolpath with the required attributes in Geometry Nodes, sculpt or stretch the path as you want, then export using nozzleboss.
 
+To make this simple, I have built node group assets that automate the building and modification of the toolpath.  
+
+- **Spiralise contour builder.**
+Builds a spiral contour with or without a base that can be used as an object on its own or as a part of a larger design
+- **Stitch maker**
+Create stitch patterns that are applied to the G-code
+- **G-code snippet inserter**
+lets you create custom G-code, that can reference face attributes. The asset adds a mask to faces that marks where the snippet is added to. This is all stored on the node group and the toolpath, and can be adapted to your own asset, for specific purposes, such as adding layer change data, or switching on additional fans at specific points. You can also add tool changes here, though it is not completely suited for tool change; this needs to be added as part of the printer object, and will be in my next update.   
+- **Wrapper builder** 
+Builds a matching mesh in Geometry Nodes linked to the G-code with a Surface Deform modifier, so that you can convert the wrapper to a mesh object and sculpt it, and the changes take effect on the G-code, without having to apply the G-code builder modifier
+
+- **Printer Objects**
+That can save presets for different printers to be reused in any project. They can also share settings with multiple G-code objects at the same time.
 
 
-### Limitations: 
-- Only supports firmware retraction (G10/G11) for now.  
-- Only supports relative extrusion mode, 'Start' G-code has M83 command by default.
-- .gcode file gets saved to same location as current .blend file 
-- When generating your own extrusion paths, keep the neccessary mesh structure in mind:
-   In edit mode, go to edit mode mesh overlayers, and tick Indices check box to show the index value for selected face/edge/vert
-   -Start with a simple 2D path/polyline
-   - Make sure that your path's vertex indices are in linear order and start like this 0-1-2-3-...
-   - Mesh operations like subdivide or ripping vertices can scramble the order to something like this 0-6-1-5-...
-   - To reorder use Blenders 'Convert to curve' and convert back to mesh.
-   - If you have a nicely ordered 2D path, extrude the path in the negative Z direction. (nozzleboss will only export extruded paths)
-      - Height of the extrusion defines your layerheight
-      - Creating polygons is used for storing and showing vertex colors used for weightmaps.
-      - Actual toolpath of the nozzle is your initial 2D path
+## Printer objects
 
-- Extrusion values are calculated from the height and length of a polygon/extruded path.
-- Can import vasemode or variable height G-code, but not both at the same time. (which prusaslicer allows you to) 
-- This is not a slicer, you can't export a .stl file directly to G-code, you either need to import pre-sliced G-code first or build extrusion paths from scratch. 
+Preset printer objects store the start/end code and any other printer-specific information. They can be shared as assets, dragged and dropped into your 3D scene, and connected to your G-code objects.
 
+This makes setup faster and complex builds easier. You can connect more than one object to the same printer to choose what gets printed.
+Select the printer and press Export to get a single G-code file containing every connected object. Temporarily hide an object in the viewport and the exporter ignores it.
 
-### Installation
-- Download github repo as .zip
-- If you are using safari make sure you disable the option to open safe files after download, as this will unzip and you need to add the plugin as a zip file to blender
-- you can drag the zip file into blender directly and an option to install the plugin should pop-up. 
-- if you have the original Nozzelboss plugin installed you need to uninstall this first, before dragging in this one, as they are named differently but are very similar, blender will not update from the original, but try and run both at the same time, which will fail.
+For example,  test print the first part of a multi-part print by hiding the rest, exporting and printing, then unhide the rest when you're ready.
 
+## Hard-coded export settings
+
+- A few settings are still hard-coded into the exporter.
+- Z hop: the exporter tracks the highest point printed so far and lifts the
+  toolhead above it for any large travel move, to try to avoid collisions.
+- Don't rely on this without checking: the toolhead, part cooling fans and
+  gantry can still get in the way and crash into the print.
+
+## Geometry Nodes attributes
+
+This is built using face and edge attributes:
+
+  - **Face number** (face) - the faces in order, from first to last printed.
+  - **Tool path** (edge) - the top edge of the ribbon: the nozzle path.
+  - **Use for height** (edge) - the vertical edge at each path point; its
+    length is the layer height.
+
+These values, among others are checked by the exporter and used to calculate the G-code move. My node groups also create other attributes, like:
+  - **Layer** - one number on all faces per revolution of the ribbon.
+  
+You can use these Geometry Nodes attributes to pick out specific layers, or specific groups of geometry within a layer, and then use those selections to add features such as offsets, over-extrusion, or any other feature you need to add
+
+## More documentation
+- [More Details](docs/more-details.md): how to install and overview of the interface  
+- [Printer setup](docs/printer-setup.md): linking an object to a printer, Start and End
+  G-code, retraction, line width and travel speed
+- [Inserting G-code](docs/gcode-snippets.md): G-code snippets at selected faces, and the
+  G-code Snippet Insert modifier
+- [Building your own node tree](docs/building-your-own.md): the attributes the export
+  reads, how flow, speed, fan and travel moves are written, and several objects in one file
+- [Editing values by hand](docs/editing-by-hand.md): changing values on faces after applying
+  the modifiers
+- [Legacy colour files](docs/legacy-colour-files.md): files made with the original
+  nozzleboss colour workflow
+
+## Limitations
+- Only supports relative extrusion: the export writes `G90` and `M83` after the start G-code,
+  whatever the start code or its macros left.
+- Assumes 1.75 mm filament.
+- The .gcode file is saved next to the current .blend file.
+- This is not a slicer: it exports toolpaths you build in Blender, not an STL.
+
+## Credits
+Based on [nozzleboss](https://github.com/Heinz-Loepmeier/nozzleboss) by Heinz Löpmeier. The
+original's [Wiki](https://github.com/Heinz-Loepmeier/nozzleboss/wiki) and
+[example.blend](https://github.com/Heinz-Loepmeier/misc/blob/main/nozzleboss_blend.zip)
+describe the original import and colour workflow.
+For the original's development updates and how-tos, see [Twitter](https://twitter.com/nozzleboss)
+and [Instagram](https://www.instagram.com/nozzleboss/).
