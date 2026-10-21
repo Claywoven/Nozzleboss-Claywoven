@@ -58,7 +58,8 @@ For example,  test print the first part of a multi-part print by hiding the rest
 
 - A few settings are still hard-coded into the exporter.
 - Z hop: the exporter tracks the highest point printed so far and lifts the
-  toolhead above it for any large travel move, to try to avoid collisions.
+  toolhead above it for any large travel move and after the last move, to try to
+  avoid collisions. The lift never goes above the printer's build height.
 - Don't rely on this without checking: the toolhead, part cooling fans and
   gantry can still get in the way and crash into the print.
 

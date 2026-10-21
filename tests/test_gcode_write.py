@@ -72,6 +72,27 @@ gw.write_path_moves(txt, [a, b], travel_speed=60)
 unretracted = [l for l in lines if "E-0.4" not in l and "unretract" not in l]
 assert "".join(txt).splitlines() == unretracted, txt
 
+# end_lift: after the last move, retract and hop above everything printed
+# (max z 1.0 + 10), so the end G-code starts clear of the whole print
+END = "; end of print: retract and lift clear of the print"
+txt = []
+gw.write_path_moves(txt, [a, b], travel_speed=60, retraction=RETRACTION, end_lift=True)
+assert "".join(txt).splitlines() == lines + [END, "G1 E-0.4 F1800", "G1 F3600", "G1 Z11.0"], txt
+txt = []
+gw.write_path_moves(txt, [a, b], travel_speed=60, end_lift=True)
+assert "".join(txt).splitlines()[-4:] == ["G1 X102.0 E0.25", END, "G1 F3600", "G1 Z11.0"], txt
+
+# max_z (the printer's build height) caps the travel hops and the end lift
+txt = []
+gw.write_path_moves(txt, [a, b], travel_speed=60, retraction=RETRACTION, max_z=5.0, end_lift=True)
+capped = "".join(txt).splitlines()
+assert [l for l in capped if l.startswith("G1 Z") and l != "G1 Z1.0"] == ["G1 Z5.0"] * 3, capped
+assert gw.hop_height(1.0, None) == 11.0 and gw.hop_height(1.0, 5.0) == 5.0
+# a cap at or below the last move: the end still retracts but doesn't move Z down
+txt = []
+gw.write_path_moves(txt, [a], travel_speed=60, retraction=RETRACTION, max_z=1.0, end_lift=True)
+assert "".join(txt).splitlines()[-2:] == [END, "G1 E-0.4 F1800"], txt
+
 # a short travel (under HOP_MIN_TRAVEL) doesn't retract or hop
 txt = []
 gw.travel_to(txt, (0, 0, 1), (0.5, 0, 1), 1.0, 20, 60, RETRACTION)

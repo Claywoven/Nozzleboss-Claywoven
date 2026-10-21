@@ -2,8 +2,10 @@
 Export to G-code operator."""
 
 import os
+import re
 
 import bpy
+import numpy as np
 from bpy.props import BoolProperty
 from bpy.types import Operator
 
@@ -12,7 +14,50 @@ from .attributes import (END_G_CODE, EXPORT_SETTINGS, RETRACT_G_CODE, START_G_CO
                          UNRETRACT_G_CODE)
 from .gcode_write import write_path_moves
 from .mesh_read import read_object_moves
-from .printer import export_settings, find_printer, helper_tag, is_printer
+from .printer import build_height, export_settings, find_printer, helper_tag, is_printer
+
+# A print-order number at the start of an object name, then a separator:
+# "10.Cup", "010 Cup", "2.5_Lid", "30-Base". Not "3D Logo" (no separator).
+ORDER_PREFIX = re.compile(r"^(\d+(?:\.\d+)?)[. _-]")
+
+
+def order_number(name):
+    """The print-order number an object name starts with, or None."""
+    match = ORDER_PREFIX.match(name)
+    return float(match.group(1)) if match else None
+
+
+def print_order_key(name, last_z):
+    """Sort key for the objects of one print: numbered objects first, by
+    their number; then the rest. Ties and unnumbered objects go lowest last
+    move first (last_z None, no face_number, at the end), then by name."""
+    number = order_number(name)
+    return (number is None, number or 0.0, last_z is None, last_z or 0.0, name)
+
+
+def order_messages(runs):
+    """(notes, warnings) about the print order of the sorted runs: which
+    objects have no number, numbers used twice, and an object printed before
+    a lower-finishing one (its head or gantry may hit what is already there)."""
+    notes, warnings = [], []
+    numbers = [order_number(run["name"]) for run in runs]
+    if all(number is None for number in numbers):
+        return notes, warnings
+    unnumbered = numbers.count(None)
+    if unnumbered:
+        notes.append(f"{unnumbered} object{'s' if unnumbered > 1 else ''} without an order "
+                     f"number print{'' if unnumbered > 1 else 's'} after the numbered ones")
+    for number in sorted({n for n in numbers if n is not None}):
+        names = [run["name"] for run, n in zip(runs, numbers) if n == number]
+        if len(names) > 1:
+            warnings.append(f"order number {number:g} is on {', '.join(names)}: "
+                            f"printed lowest last move first")
+    for earlier, later in zip(runs, runs[1:]):
+        if earlier["last_z"] > later["last_z"]:
+            notes.append(f"'{earlier['name']}' (ends at Z {earlier['last_z']:g}) prints before "
+                         f"'{later['name']}' (Z {later['last_z']:g}): check the gantry clears it")
+    return notes, warnings
+
 
 def export_targets(context, obj):
     """(printer, objects to export): every visible mesh linked to obj's
@@ -36,7 +81,8 @@ def not_exported(obj):
 
 def export_gcode(context, operator=None):
     """Export the active object and every other visible object linked to its
-    printer to one G-code file, lowest last move first. Works from the
+    printer to one G-code file, in print_order_key order (a number at the
+    start of the name first, else lowest last move first). Works from the
     printer too. Stops unless the printer has Start_G_code and End_G_code.
     Long travels retract with the printer's Retract_G_code / Unretract_G_code,
     or not at all without them.
@@ -60,6 +106,7 @@ def export_gcode(context, operator=None):
 
     notes = []
     warnings = []
+    max_z, end_lift = None, False  # LEGACY keeps uncapped hops and no end lift
     if legacy.uses_legacy_export(obj):  # LEGACY
         run, created = legacy.read_object_moves(context, obj, nozzleboss)  # LEGACY
         start_code, end_code = legacy.start_end(created)  # LEGACY
@@ -103,15 +150,27 @@ def export_gcode(context, operator=None):
                 runs.append(run)
         if not runs:
             raise ValueError(f"no {TOOL_PATH} moves to export")
-        runs.sort(key=lambda run: (run["last_z"], run["name"]))
+        runs.sort(key=lambda run: print_order_key(run["name"], run["last_z"]))
         for run in runs:
             prefix = f"{run['name']}: " if len(runs) > 1 else ""
             warnings += [prefix + w for w in run["warnings"]]
         if len(runs) > 1:
             notes.insert(0, f"{len(runs)} objects")
+            order_notes, order_warnings = order_messages(runs)
+            notes += order_notes
+            warnings += order_warnings
+        end_lift = True
+        max_z = build_height(printer)
+        if max_z is None:
+            notes.append(f"hops not capped: the printer '{printer.name}' mesh has no build height")
+        else:
+            top = max(float(np.max(run[key][:, 2])) for run in runs for key in ("P1", "P2"))
+            if top > max_z:
+                warnings.append(f"the print reaches Z {top:g}, above the build height {max_z:g} "
+                                f"of '{printer.name}'")
 
     _txt = [start_code + '\n']
-    write_path_moves(_txt, runs, travel_speed, retraction)
+    write_path_moves(_txt, runs, travel_speed, retraction, max_z, end_lift)
     _txt.append('\n' + end_code)
 
     # Opened only once the G-code is built, so a failed export leaves an
