@@ -13,7 +13,8 @@ G-code can change along the path.
 - Exports every object linked to the same printer into one file
 - Takes flow, speed, fan, Start/End G-code and inserted G-code from the node tree
 - Previews any per-segment value as a colour gradient in the viewport
-- On long travels, hops above the highest point printed so far, which makes non-planar
+- On long travels and after the last move, hops above the highest point printed so far
+  (no higher than the printer's build height), which makes non-planar
   prints less likely to crash. You still need to check the G-code preview and allow for
   the gantry and part-cooling fan.
 - Warns if it can't save because the file is open in another program (usually a slicer
@@ -68,7 +69,8 @@ The add-on's panel is in the 3D View sidebar (N), on the **nozzleboss** tab.
 - **Export to G-code:** writes `<blend file name>.gcode` next to the saved .blend file.
   Save the .blend first.
 - With the printer selected, the values cover the whole print, and the print order is
-  listed below the export button.
+  listed below the export button. "(by name number)" shows when object names set it
+  (see [Choosing the print order](building-your-own.md#choosing-the-print-order)).
 - The wrapper and profile objects (`cw_prop` = `wrapper` or `profile`, on the object or its
   data) are never exported: with one selected, the panel says so and the export button is
   greyed out.

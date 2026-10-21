@@ -206,10 +206,15 @@ assert ext[4].endswith('F750'), ext[4]
 # unknown after the start G-code), then one hop between run A and B
 first = body.index('; object: ribbon') + 1
 assert body[first:first + 5] == ['G10', 'G1 F3600', 'G1 Z10.0', 'G1 X0.0 Y0.0', 'G1 Z1.0'], body[:8]
-assert body.count('G10') == 2 and body.count('G11') == 2 and 'G1 Z11.2' not in body
+assert body.count('G11') == 2
 hop = body.index('G10', first + 1)
 assert ext[2] in body[:hop] and ext[3] in body[hop:]
 assert 'G1 Z11.0' in body, "hop above max z 1.0 + 10"
+# after the last move: retract and hop above everything printed (max z 1.2),
+# not capped (the test printer is one vertex, no build height)
+end = body.index('; end of print: retract and lift clear of the print')
+assert body[end + 1:end + 4] == ['G10', 'G1 F3600', 'G1 Z11.2'], body[end:]
+assert body.count('G10') == 3 and 'G1 Z11.2' not in body[:end]
 assert [l for l in body if l.startswith('M106')] == ['M106 S0', 'M106 S128', 'M106 S255'], body
 
 # --- negative: scrambled path
@@ -286,6 +291,28 @@ assert "1 zero-length moves skipped" in rep.reports[-1][1], rep.reports
 body = open(GCODE).read().splitlines()
 assert not any(re.fullmatch(r'G1 E[\d.]+( F\d+)?', l) for l in body), "no axis-less extrusion"
 assert len([l for l in body if re.match(r'G1 [XYZ].* E', l)]) == 4
+
+# build height: the top of the printer mesh (world Z) caps the travel hops
+# and the end lift; a print above it is warned about
+build()
+pobj = bpy.data.objects["printer"]
+pobj.data.vertices.add(1)
+pobj.data.vertices[1].co = (0, 0, 4.0)
+pobj.location.z = 1.0  # world space: the top is at 5.0
+bpy.context.view_layer.update()
+assert nb.printer.build_height(pobj) == 5.0
+rep = Reporter()
+assert nbx_export(rep) == {'FINISHED'}
+body = open(GCODE).read().splitlines()
+hops = [l for l in body if re.fullmatch(r'G1 Z[\d.]+', l) and float(l[4:]) > 1.2]
+assert hops and set(hops) == {'G1 Z5.0'}, hops
+assert "hops not capped" not in rep.reports[-1][1] and "build height" not in rep.reports[-1][1], rep.reports
+pobj.location.z = 0.0
+pobj.data.vertices[1].co = (0, 0, 1.1)
+bpy.context.view_layer.update()
+rep = Reporter()
+assert nbx_export(rep) == {'FINISHED'}
+assert "the print reaches Z 1.2, above the build height 1.1 of 'printer'" in rep.reports[-1][1], rep.reports
 
 # --- LEGACY: colour-attribute files (no tool_path, no printer)
 srgb_to_linear = nb.colormaps.srgb_to_linear
@@ -629,7 +656,10 @@ first = body.index('G1 E-0.4 F1800')
 # the unretract's F1800 must not stay in force: the extrusion speed follows it
 assert body[first + 1:first + 7] == ['G1 F3600', 'G1 Z10.0', 'G1 X0.0 Y0.0', 'G1 Z1.0', 'G1 E0.4 F1800',
                                      'G1 F1200'], body[first:first + 8]
-assert body.count('G1 E-0.4 F1800') == body.count('G1 E0.4 F1800') == 2, body
+# one pair per travel, plus a retract with no unretract at the end of the print
+assert body.count('G1 E-0.4 F1800') == 3 and body.count('G1 E0.4 F1800') == 2, body
+end = body.index('; end of print: retract and lift clear of the print')
+assert body[end + 1:end + 4] == ['G1 E-0.4 F1800', 'G1 F3600', 'G1 Z11.2'], body[end:]
 assert 'G10' not in body and 'G11' not in body
 # only one of the two stops the export: the retract would never be undone
 strings["Unretract_G_code"].string = "  \n"  # blank counts as absent
@@ -707,6 +737,35 @@ assert open(GCODE).read() == out
 assert sol.show_viewport
 low.modifiers.remove(sol)
 
+# 10b. a number at the start of the name sets the print order
+names = ("10.Cup", "010 Cup", "2.5_Lid", "30-Base", "01.G-code", "2.5.Lid", "3D Logo", "Cup")
+assert [nb.export.order_number(n) for n in names] == [10, 10, 2.5, 30, 1, 2.5, None, None]
+
+
+def export_order():
+    rep = Reporter()
+    assert nb.export.export_gcode(bpy.context, rep) == {'FINISHED'}
+    return [l for l in open(GCODE).read().splitlines() if l.startswith('; object:')], rep.reports[-1][1]
+
+
+# numbered: by number, even when the first ends higher (and the export says so)
+first.name, low.name = "20.ribbon", "30.low"
+objects, report = export_order()
+assert objects == ['; object: 20.ribbon', '; object: 30.low'], objects
+assert "'20.ribbon' (ends at Z 1.2) prints before '30.low' (Z 0.7): check the gantry clears it" in report, report
+# unnumbered objects print after the numbered ones
+low.name = "low"
+objects, report = export_order()
+assert objects == ['; object: 20.ribbon', '; object: low'], objects
+assert "1 object without an order number prints after the numbered ones" in report, report
+# a number used twice: those objects keep the default order, with a warning
+low.name = "20.low"
+objects, report = export_order()
+assert objects == ['; object: 20.low', '; object: 20.ribbon'], objects
+assert "order number 20 is on 20.low, 20.ribbon: printed lowest last move first" in report, report
+first.name, low.name = "ribbon", "low"
+assert export_order()[0] == ['; object: low', '; object: ribbon'], "no numbers: the default order"
+
 # 11. panel with the printer selected: combined values and print order
 ov = importlib.import_module(PKG + ".overlay")
 dg = bpy.context.evaluated_depsgraph_get()
@@ -754,6 +813,11 @@ text = panel_text(bpy.data.objects["printer"])
 print("\n".join(text))
 assert "Print Order:" in text and text.index("1. low") < text.index("2. ribbon"), text
 assert text.index("Fan Speed:") < text.index("Print Order:"), "print order below the values and export button"
+first.name, low.name = "20.ribbon", "30.low"  # the panel lists the same order as the export
+numbered = panel_text(bpy.data.objects["printer"])
+assert "Print Order (by name number):" in numbered, numbered
+assert numbered.index("1. 20.ribbon") < numbered.index("2. 30.low"), numbered
+first.name, low.name = "ribbon", "low"
 summary = text[text.index("Flow Multiplier:"):]
 assert "ALERT" not in summary and "missing" not in " ".join(summary), summary
 assert "10.000  -  35.000" in summary, "speed over both objects"

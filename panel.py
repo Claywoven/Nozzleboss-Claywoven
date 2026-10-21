@@ -8,7 +8,7 @@ import bpy
 
 from . import draw_cache, legacy, overlay
 from .attributes import FACE_NUMBER, LINE_WIDTH, PRINT_SPEED, TRAVEL_SPEED, masked_stages
-from .export import export_targets
+from .export import export_targets, order_number, print_order_key
 from .mesh_read import last_move_z, mask_starts
 from .printer import find_printer, helper_tag, is_printer, printer_value
 
@@ -143,12 +143,13 @@ class NOZZLEBOSS_PT_Panel(bpy.types.Panel):
     @staticmethod
     def print_objects(context, printer):
         """[(object, evaluated mesh)] for every object the export would write
-        from this printer, in print order (lowest last move first; objects
-        without face_number last)."""
+        from this printer, in print order (export.print_order_key: numbered
+        names first, then lowest last move first; objects without
+        face_number last)."""
         depsgraph = context.evaluated_depsgraph_get()
         pairs = [(o, o.evaluated_get(depsgraph).data) for o in export_targets(context, printer)[1]]
         keys = {o.name: last_move_z(mesh, o.matrix_world) for o, mesh in pairs}
-        return sorted(pairs, key=lambda p: (keys[p[0].name] is None, keys[p[0].name] or 0.0, p[0].name))
+        return sorted(pairs, key=lambda p: print_order_key(p[0].name, keys[p[0].name]))
 
     @classmethod
     def print_report(cls, context, printer):
@@ -206,7 +207,8 @@ class NOZZLEBOSS_PT_Panel(bpy.types.Panel):
         export button so the panel above doesn't move when the printer is
         selected."""
         col = layout.box().column(align=True)
-        col.label(text="Print Order:")
+        numbered = any(order_number(name) is not None for name, _ in order)
+        col.label(text="Print Order (by name number):" if numbered else "Print Order:")
         col.separator()
         for k, (name, has_face_number) in enumerate(order, 1):
             row = col.row()

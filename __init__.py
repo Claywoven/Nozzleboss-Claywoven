@@ -2,7 +2,7 @@ bl_info = {
     "name": "NozzleBoss (Claywoven Fork)",
     "description": "Exports Geometry Nodes tool paths to G-code",
     "author": "Jasper - Claywoven (based on Heinz Löpmeier's nozzleboss)",
-    "version": (0, 1, 0),
+    "version": (0, 2, 0),
     "blender": (5, 2, 0),   # the GN viewport overlay needs 5.2+
     "location": "3D View > nozzleboss",
     "category": "Import-Export"

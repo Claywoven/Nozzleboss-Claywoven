@@ -95,19 +95,29 @@ def format_snippet(where, template, values):
         raise ValueError(f"{where}:\nA placeholder doesn't fit its value: {e}.")
     return snippet if snippet.endswith('\n') else snippet + '\n'
 
-def travel_to(txt, from_co, to_co, max_z_so_far, F, travel_speed, retraction=None):
+def hop_height(max_z_so_far, max_z=None):
+    """The Z a hop lifts to: HOP_CLEARANCE above everything printed so far,
+    but no higher than max_z (the printer's build height) when given."""
+    hop_z = max_z_so_far + HOP_CLEARANCE
+    if max_z is not None:
+        hop_z = min(hop_z, max_z)
+    return round(hop_z, 4)
+
+
+def travel_to(txt, from_co, to_co, max_z_so_far, F, travel_speed, retraction=None, max_z=None):
     """Travel at travel_speed (mm/s) to the start of a run, then set the
     extrusion speed F (mm/s). Long travels hop above everything printed so
-    far, between retraction's (retract, unretract) text when given. from_co
-    None means the nozzle position is unknown (the first travel after the
-    start G-code): that always takes the long form, which states X, Y and Z."""
+    far (capped at max_z), between retraction's (retract, unretract) text
+    when given. from_co None means the nozzle position is unknown (the first
+    travel after the start G-code): that always takes the long form, which
+    states X, Y and Z."""
     travel_F = feed_rate(travel_speed)
     if from_co is None:
         travel_dist = np.inf
     else:
         travel_dist = np.linalg.norm(np.asarray(to_co, dtype=float) - np.asarray(from_co, dtype=float))
     if travel_dist > HOP_MIN_TRAVEL:
-        hop_z  = round(max_z_so_far + HOP_CLEARANCE, 4)
+        hop_z  = hop_height(max_z_so_far, max_z)
         next_x = round(float(to_co[0]), 4)
         next_y = round(float(to_co[1]), 4)
         next_z = round(float(to_co[2]), 4)
@@ -125,12 +135,14 @@ def travel_to(txt, from_co, to_co, max_z_so_far, F, travel_speed, retraction=Non
     else:
         txt.append(travel(from_co, to_co, travel_F, feed_rate(F)))
 
-def write_path_moves(txt, runs, travel_speed, retraction=None):
+def write_path_moves(txt, runs, travel_speed, retraction=None, max_z=None, end_lift=False):
     """The moves of each mesh_read.read_object_moves() result in turn. Each object
     starts with a travel, which hops above everything printed so far.
     travel_speed is in mm/s; retraction is the (retract, unretract) text
-    around long travels, or None for none. MODES comes first, and again
-    after snippets."""
+    around long travels, or None for none; max_z caps every hop (the
+    printer's build height), or None for no cap. end_lift ends with a
+    retract and a hop, so the end G-code starts clear of the whole print,
+    not just of the last move. MODES comes first, and again after snippets."""
     txt.append(MODES)
     prev_co = None  # unknown until the first travel
     prev_F = -1
@@ -147,7 +159,7 @@ def write_path_moves(txt, runs, travel_speed, retraction=None):
         snippets = run["snippets"]
         for k in range(len(P1)):
             if new_run[k]:
-                travel_to(txt, prev_co, P1[k], max_z_so_far, speed[k], travel_speed, retraction)
+                travel_to(txt, prev_co, P1[k], max_z_so_far, speed[k], travel_speed, retraction, max_z)
                 prev_F = speed[k]
             if fan is not None and fan[k] != prev_fan:
                 txt.append(f'M106 S{fan[k]}\n')
@@ -162,3 +174,13 @@ def write_path_moves(txt, runs, travel_speed, retraction=None):
             txt.append(gcode_line)
             prev_co = P2[k]
             max_z_so_far = max(max_z_so_far, P1[k][2], P2[k][2])
+    if end_lift and prev_co is not None:
+        # The last move need not be the highest (non-planar paths), and the
+        # end G-code's own first lift is a small relative one.
+        txt.append('; end of print: retract and lift clear of the print\n')
+        if retraction is not None:
+            txt.append(retraction[0])
+        hop_z = hop_height(max_z_so_far, max_z)
+        if hop_z > prev_co[2]:
+            txt.append(f'G1 F{feed_rate(travel_speed)}\n')
+            txt.append(f'G1 Z{hop_z}\n')

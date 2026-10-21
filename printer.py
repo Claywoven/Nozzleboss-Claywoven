@@ -1,6 +1,8 @@
 """The printer object: finding it from an object's node trees, and reading
 the settings the export uses from its attributes."""
 
+import numpy as np
+
 from . import node_tree, overlay
 from .attributes import HELPER_TAGS, PRINTER_PROP, PRINTER_TAG, LINE_WIDTH, TRAVEL_SPEED
 from .mesh_read import read_scalar_attribute
@@ -77,6 +79,22 @@ def printer_value(printer, attr_name):
         return None
     values = read_scalar_attribute(attr)
     return None if values is None else float(values[0])
+
+
+def build_height(printer):
+    """Top of the printer's build volume (mm): the highest point of its
+    evaluated mesh in world space, which is the box Printer Dimensions
+    builds from its Size. None when the mesh has no height (a printer that
+    is a single settings vertex), so nothing is capped."""
+    mesh = overlay.evaluated_mesh(printer)
+    if mesh is None or not len(mesh.vertices):
+        return None
+    co = np.empty(len(mesh.vertices) * 3, dtype=np.float64)
+    mesh.vertices.foreach_get("co", co)
+    matrix = np.array(printer.matrix_world)
+    z = co.reshape(-1, 3) @ matrix[2, :3] + matrix[2, 3]
+    top = float(z.max())
+    return top if top > 0 else None
 
 
 def export_settings(printer):

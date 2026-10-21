@@ -44,11 +44,35 @@ far. It then moves across, lowers, and unretracts. The retract and unretract are
 printer's own G-code (see [Retraction](printer-setup.md#retraction)); without it the travel
 still lifts but doesn't retract. Shorter travels move directly, without retracting.
 
+After the last move the nozzle retracts and lifts the same way, so the End G-code
+starts clear of the whole print, not just of the last move.
+
+No lift goes above the printer's build height: the top of the printer object's
+build-volume box (the Size of Printer Dimensions). A printer object with no height (a
+single vertex) leaves the lifts uncapped, and the export says so. A print that goes
+above the build height is exported with a warning.
+
 ## Several objects in one file
 Export from the printer object or any object linked to it. Every visible mesh object
 whose modifiers reference that printer goes into one G-code file, with one Start and
 one End block. Objects print one after another, sorted by the Z of their last move,
 lowest first. Between objects the nozzle hops above everything printed so far.
+
+### Choosing the print order
+To set the order yourself, start object names with a number and a separator (`.`,
+space, `_` or `-`): `10.Cup`, `20.Lid`, `30.Base`.
+
+- Numbered objects print first, lowest number first. Objects without a number
+  print after them, in the default order (lowest last move first).
+- Number in steps of 10 (`10`, `20`, `30`) so you can add a part between two later
+  without renaming the others: `15.Handle` prints between `10.Cup` and `20.Lid`.
+  Decimals also work (`2.5.Lid`), and gaps in the numbers don't matter.
+- Leading zeros (`010.Cup`) keep the Outliner list in the same order as the print.
+- A number used on two objects prints those two in the default order, with a warning.
+- A name that just starts with a number (`3D Logo`) isn't numbered: it needs the
+  separator straight after the number.
+- The export notes when an object prints before one that finishes lower, since the
+  print head or gantry may then hit it.
 
 - Select the printer to see the whole print in the panel: the objects in print order
   and each value's min - max over all of them (read-only; select an object to preview it).
