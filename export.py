@@ -12,7 +12,7 @@ from bpy.types import Operator
 from . import gcode_source, legacy
 from .attributes import (END_G_CODE, EXPORT_SETTINGS, RETRACT_G_CODE, START_G_CODE, TOOL_PATH,
                          UNRETRACT_G_CODE)
-from .gcode_write import write_path_moves
+from .gcode_write import scan_printed, write_path_moves
 from .mesh_read import read_object_moves
 from .printer import build_height, export_settings, find_printer, helper_tag, is_printer
 
@@ -107,6 +107,7 @@ def export_gcode(context, operator=None):
     notes = []
     warnings = []
     max_z, end_lift = None, False  # LEGACY keeps uncapped hops and no end lift
+    start = (None, None)  # LEGACY hops ignore what the start code prints
     if legacy.uses_legacy_export(obj):  # LEGACY
         run, created = legacy.read_object_moves(context, obj, nozzleboss)  # LEGACY
         start_code, end_code = legacy.start_end(created)  # LEGACY
@@ -160,6 +161,11 @@ def export_gcode(context, operator=None):
             notes += order_notes
             warnings += order_warnings
         end_lift = True
+        # Print moves in the start code (a sliced thread or connector) count as
+        # printed, so the hops lift above them instead of into them.
+        start = scan_printed(start_code)
+        if start[0] is not None and start[0] > 1.0:
+            notes.append(f"the {START_G_CODE} prints up to Z {start[0]:g}: hops clear it")
         max_z = build_height(printer)
         if max_z is None:
             notes.append(f"hops not capped: the printer '{printer.name}' mesh has no build height")
@@ -168,9 +174,12 @@ def export_gcode(context, operator=None):
             if top > max_z:
                 warnings.append(f"the print reaches Z {top:g}, above the build height {max_z:g} "
                                 f"of '{printer.name}'")
+            if start[0] is not None and start[0] > max_z:
+                warnings.append(f"the {START_G_CODE} prints up to Z {start[0]:g}, above the build "
+                                f"height {max_z:g} of '{printer.name}'")
 
     _txt = [start_code + '\n']
-    write_path_moves(_txt, runs, travel_speed, retraction, max_z, end_lift)
+    write_path_moves(_txt, runs, travel_speed, retraction, max_z, end_lift, start)
     _txt.append('\n' + end_code)
 
     # Opened only once the G-code is built, so a failed export leaves an

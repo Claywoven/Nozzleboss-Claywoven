@@ -1,6 +1,8 @@
 """G-code text from move arrays. Plain Python and numpy only - no bpy or
 mathutils - so this can be tested without Blender."""
 
+import re
+
 import numpy as np
 
 # Height the nozzle lifts above the highest point printed so far on long travels (mm).
@@ -95,6 +97,73 @@ def format_snippet(where, template, values):
         raise ValueError(f"{where}:\nA placeholder doesn't fit its value: {e}.")
     return snippet if snippet.endswith('\n') else snippet + '\n'
 
+_COMMAND = re.compile(r'([GMT])(\d+(?:\.\d+)?)')
+_WORD = re.compile(r'([A-Z])\s*([-+]?(?:\d+\.?\d*|\.\d+))')
+# Commands after which the nozzle's Z is unknown (homing, probing, levelling).
+_Z_UNKNOWN = {'G28', 'G29', 'G29.1', 'G29.2', 'G30', 'G34', 'G380'}
+
+
+def scan_printed(text, z=None, relative_e=False):
+    """(top, z) for a block of G-code text such as the start G-code or a
+    snippet: top is the highest Z it extrudes at (None if it extrudes
+    nothing), z the Z it leaves the nozzle at (None if unknown). The arguments
+    are the state the text starts in: the nozzle's Z (None if unknown) and
+    whether extrusion is relative (M83). Positioning starts absolute. Follows
+    G90/G91, M82/M83 and G92; a move extrudes when it moves the nozzle and its
+    E goes up, so a lift or park without E doesn't count. After homing or
+    probing, or a macro (a command that isn't G, M or T), Z is unknown."""
+    top = None
+    relative_xyz = False
+    e = 0.0
+    for line in text.splitlines():
+        line = line.split(';', 1)[0].split('*', 1)[0].strip().upper()
+        line = re.sub(r'^N\d+\s*', '', line)
+        if not line:
+            continue
+        m = _COMMAND.match(line)
+        if m is None:
+            z = None  # a macro (Klipper PRINT_START, ...) may move Z
+            continue
+        cmd = m.group(1) + str(float(m.group(2))).removesuffix('.0')
+        if cmd in ('G0', 'G1', 'G2', 'G3', 'G92'):
+            words = dict(_WORD.findall(line[m.end():]))
+            words = {axis: float(value) for axis, value in words.items()}
+        if cmd in ('G0', 'G1', 'G2', 'G3'):
+            if 'Z' in words:
+                if not relative_xyz:
+                    z = words['Z']
+                elif z is not None:
+                    z += words['Z']
+            extruded = False
+            if 'E' in words:
+                if relative_xyz or relative_e:
+                    extruded = words['E'] > 0
+                else:
+                    extruded = words['E'] > e
+                    e = words['E']
+            moved = any(axis in words for axis in 'XYZ')
+            if extruded and moved and z is not None:
+                top = z if top is None else max(top, z)
+        elif cmd == 'G92':
+            if not words:
+                z, e = 0.0, 0.0
+            if 'Z' in words:
+                z = words['Z']
+            if 'E' in words:
+                e = words['E']
+        elif cmd == 'G90':
+            relative_xyz = False
+        elif cmd == 'G91':
+            relative_xyz = True
+        elif cmd == 'M82':
+            relative_e = False
+        elif cmd == 'M83':
+            relative_e = True
+        elif cmd in _Z_UNKNOWN:
+            z = None
+    return top, z
+
+
 def hop_height(max_z_so_far, max_z=None):
     """The Z a hop lifts to: HOP_CLEARANCE above everything printed so far,
     but no higher than max_z (the printer's build height) when given."""
@@ -104,13 +173,15 @@ def hop_height(max_z_so_far, max_z=None):
     return round(hop_z, 4)
 
 
-def travel_to(txt, from_co, to_co, max_z_so_far, F, travel_speed, retraction=None, max_z=None):
+def travel_to(txt, from_co, to_co, max_z_so_far, F, travel_speed, retraction=None, max_z=None,
+              start_z=None):
     """Travel at travel_speed (mm/s) to the start of a run, then set the
     extrusion speed F (mm/s). Long travels hop above everything printed so
     far (capped at max_z), between retraction's (retract, unretract) text
     when given. from_co None means the nozzle position is unknown (the first
     travel after the start G-code): that always takes the long form, which
-    states X, Y and Z."""
+    states X, Y and Z, and never lowers the nozzle from start_z (where the
+    start G-code left it, when known) before moving in X and Y."""
     travel_F = feed_rate(travel_speed)
     if from_co is None:
         travel_dist = np.inf
@@ -118,6 +189,8 @@ def travel_to(txt, from_co, to_co, max_z_so_far, F, travel_speed, retraction=Non
         travel_dist = np.linalg.norm(np.asarray(to_co, dtype=float) - np.asarray(from_co, dtype=float))
     if travel_dist > HOP_MIN_TRAVEL:
         hop_z  = hop_height(max_z_so_far, max_z)
+        if from_co is None and start_z is not None:
+            hop_z = max(hop_z, round(float(start_z), 4))
         next_x = round(float(to_co[0]), 4)
         next_y = round(float(to_co[1]), 4)
         next_z = round(float(to_co[2]), 4)
@@ -135,19 +208,24 @@ def travel_to(txt, from_co, to_co, max_z_so_far, F, travel_speed, retraction=Non
     else:
         txt.append(travel(from_co, to_co, travel_F, feed_rate(F)))
 
-def write_path_moves(txt, runs, travel_speed, retraction=None, max_z=None, end_lift=False):
+def write_path_moves(txt, runs, travel_speed, retraction=None, max_z=None, end_lift=False,
+                     start=(None, None)):
     """The moves of each mesh_read.read_object_moves() result in turn. Each object
     starts with a travel, which hops above everything printed so far.
     travel_speed is in mm/s; retraction is the (retract, unretract) text
     around long travels, or None for none; max_z caps every hop (the
     printer's build height), or None for no cap. end_lift ends with a
     retract and a hop, so the end G-code starts clear of the whole print,
-    not just of the last move. MODES comes first, and again after snippets."""
+    not just of the last move. start is scan_printed() of the start G-code:
+    what it prints counts as printed so far, and the first hop doesn't lower
+    the nozzle from where it left it. What snippets print counts too.
+    MODES comes first, and again after snippets."""
     txt.append(MODES)
     prev_co = None  # unknown until the first travel
     prev_F = -1
     prev_fan = -1
-    max_z_so_far = 0.0
+    start_top, start_z = start
+    max_z_so_far = 0.0 if start_top is None else max(0.0, start_top)
     for run in runs:
         txt.append(f'; object: {run["name"]}\n')
         # Plain Python lists: indexing a numpy array one element at a time is
@@ -159,7 +237,8 @@ def write_path_moves(txt, runs, travel_speed, retraction=None, max_z=None, end_l
         snippets = run["snippets"]
         for k in range(len(P1)):
             if new_run[k]:
-                travel_to(txt, prev_co, P1[k], max_z_so_far, speed[k], travel_speed, retraction, max_z)
+                travel_to(txt, prev_co, P1[k], max_z_so_far, speed[k], travel_speed, retraction, max_z,
+                          start_z)
                 prev_F = speed[k]
             if fan is not None and fan[k] != prev_fan:
                 txt.append(f'M106 S{fan[k]}\n')
@@ -167,6 +246,10 @@ def write_path_moves(txt, runs, travel_speed, retraction=None, max_z=None, end_l
             if k in snippets:
                 txt.extend(snippets[k])
                 txt.append(MODES_AFTER_SNIPPET)
+                # Sliced G-code in a snippet may print above the mesh: later hops clear it.
+                snippet_top = scan_printed("".join(snippets[k]), P1[k][2], relative_e=True)[0]
+                if snippet_top is not None:
+                    max_z_so_far = max(max_z_so_far, snippet_top)
                 prev_F = -1  # a snippet may change the feed rate; restore it on this move
             if zero[k]:
                 continue

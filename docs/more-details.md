@@ -29,7 +29,9 @@ patrons on [Patreon](https://www.patreon.com/cw/Claywoven). The add-on also expo
 you build yourself that follows the [attribute rules](building-your-own.md).
 
 ## Installation
-- Download the GitHub repo as a .zip.
+- Download the add-on zip (for example `nozzleboss_claywoven-0.2.1.zip`) from the latest
+  [release](https://github.com/Claywoven/Nozzleboss-Claywoven/releases/latest). Not the
+  "Source code" zip: its folder name has dots in it, which stops Blender loading the add-on.
 - If you are using Safari, turn off the option to open safe files after downloading.
   Otherwise Safari unzips the file, and Blender needs the add-on as a zip.
 - Drag the zip file into Blender. An option to install the add-on should pop up.

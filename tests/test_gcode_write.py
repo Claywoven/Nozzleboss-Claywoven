@@ -131,6 +131,52 @@ txt = []
 gw.write_path_moves(txt, [f], travel_speed=60)
 assert "G1 F12" in "".join(txt).splitlines(), txt
 
+# scan_printed: the highest Z a block of G-code extrudes at, and where it leaves Z
+assert gw.scan_printed("") == (None, None)
+assert gw.scan_printed("G28\nG1 Z5 F600\n") == (None, 5.0)          # a lift prints nothing
+assert gw.scan_printed("G1 Z0.3\nG1 X10 Y0 E2\n") == (0.3, 0.3)       # absolute E (default M82)
+assert gw.scan_printed("G1 Z0.3\nG1 E5\nG1 X10 E4\n") == (None, 0.3)  # E-only prime; E going down
+assert gw.scan_printed("M83\nG1 Z2\nG1 X5 E0.5\nG1 E-0.8\nG1 Z60\n") == (2.0, 60.0)  # park lift ignored
+assert gw.scan_printed("G1 Z1\nG91\nG1 Z3\nG1 X1 E0.2\nG90\n") == (4.0, 4.0)  # G91: Z and E relative
+assert gw.scan_printed("G1 Z1 E1 X1\nG92 E0\nG1 Z2 X2 E0.5\n") == (2.0, 2.0)  # G92 E reset
+assert gw.scan_printed("N10 g1 z7 x1 e1 *57 ; numbered, lower case\n") == (7.0, 7.0)
+assert gw.scan_printed("G1 Z3\nPRINT_START\n") == (None, None)         # a macro: Z unknown
+assert gw.scan_printed("G91\nG1 X1 Z1 E1\n") == (None, None)            # relative from unknown Z
+assert gw.scan_printed("G1 Z0.4 X1 E1\nG28\nG1 X2 E2\n") == (0.4, None)  # homing: Z unknown
+
+# Print moves in the start G-code (a sliced thread 25 mm tall) count as printed:
+# the first hop lifts above them, not down to 10 mm into them (the old bug),
+# and so do later hops and the end lift
+START = "G90\nM83\nG1 Z0.2 F600\nG1 X0 Y0 E1\nG1 Z25\nG1 X5 Y5 E1\nG1 Z26 ; lift\n"
+start = gw.scan_printed(START)
+assert start == (25.0, 26.0), start
+txt = []
+gw.write_path_moves(txt, [a, b], travel_speed=60, end_lift=True, start=start)
+lines = "".join(txt).splitlines()
+assert [l for l in lines if l.startswith("G1 Z") and l != "G1 Z1.0"] == ["G1 Z35.0"] * 3, lines
+# the first hop never lowers the nozzle from where the start code left it
+txt = []
+gw.write_path_moves(txt, [c], travel_speed=60, max_z=30.0, start=(None, 50.0))
+assert "".join(txt).splitlines()[3:6] == ["G1 F3600", "G1 Z50.0", "G1 X0.5 Y0.0"], txt
+# capped by the build height, still above the start-code print
+txt = []
+gw.write_path_moves(txt, [c], travel_speed=60, max_z=30.0, start=start)
+assert "".join(txt).splitlines()[4] == "G1 Z30.0", txt
+# no start-code print: unchanged
+txt = []
+gw.write_path_moves(txt, [c], travel_speed=60, start=gw.scan_printed("G28\nG1 Z5\n"))
+assert "".join(txt).splitlines()[4] == "G1 Z10.0", txt
+
+# a snippet that prints (sliced G-code, relative to the move's Z) raises the later hops
+g = run("g", P1=[(10, 0, 1), (12, 0, 1), (50, 0, 1)], P2=[(12, 0, 1), (14, 0, 1), (52, 0, 1)],
+        E=[0.5, 0.5, 0.5], speed=[20, 20, 20], fan=[0, 0, 0], new_run=[True, False, True],
+        snippets={1: ["G91\nG1 Z14\nG1 X1 E0.3\nG1 Z-14\nG90\n"]})
+txt = []
+gw.write_path_moves(txt, [g], travel_speed=60)
+lines = "".join(txt).splitlines()
+hops = [l for l in lines if l.startswith("G1 Z") and l.endswith(".0") and l != "G1 Z1.0"]
+assert hops == ["G1 Z10.0", "G1 Z25.0"], lines  # 1 + 14 printed by the snippet, + 10
+
 # snippet placeholders: bare floats round to 4 decimals, a spec wins, ints stay ints
 assert gw.format_snippet("w", "G1 X{a}", {"a": np.float64(1.0591715574264526)}) == "G1 X1.0592\n"
 assert gw.format_snippet("w", "{a:.2f}", {"a": 1.0591715574264526}) == "1.06\n"
